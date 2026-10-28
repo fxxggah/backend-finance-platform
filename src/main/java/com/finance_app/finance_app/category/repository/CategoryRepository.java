@@ -24,5 +24,7 @@ public interface CategoryRepository extends JpaRepository<Category, Long> {
     boolean existsByUserIdAndNameIgnoreCaseAndTypeAndDeletedFalse(Long userId, String name, TransactionType type);
 
     boolean existsByUserIdAndNameIgnoreCaseAndTypeAndDeletedFalseAndIdNot(Long userId, String name, TransactionType type, Long id);
+
+    void deleteAllByUserId(Long userId);
 }
 

@@ -13,5 +13,7 @@ public interface GoalContributionRepository extends JpaRepository<GoalContributi
     List<GoalContribution> findAllByGoalIdAndGoalUserIdOrderByDateDesc(Long goalId, Long userId);
 
     boolean existsByIdAndGoalUserId(Long id, Long userId);
+
+    void deleteAllByGoalUserId(Long userId);
 }
 

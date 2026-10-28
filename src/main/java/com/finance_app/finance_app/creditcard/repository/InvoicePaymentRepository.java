@@ -18,5 +18,7 @@ public interface InvoicePaymentRepository extends JpaRepository<InvoicePayment, 
     boolean existsByAccountId(Long accountId);
 
     boolean existsByCreditCardId(Long creditCardId);
+
+    void deleteAllByUserId(Long userId);
 }
 

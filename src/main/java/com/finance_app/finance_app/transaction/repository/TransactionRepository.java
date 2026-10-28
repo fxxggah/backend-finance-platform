@@ -26,5 +26,7 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long>,
     boolean existsByCreditCardIdAndDeletedFalse(Long creditCardId);
 
     boolean existsByCategoryIdAndDeletedFalse(Long categoryId);
+
+    void deleteAllByUserId(Long userId);
 }
 

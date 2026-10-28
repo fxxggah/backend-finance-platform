@@ -21,5 +21,7 @@ public interface AccountRepository extends JpaRepository<Account, Long> {
     boolean existsByUserIdAndNameIgnoreCaseAndIdNot(Long userId, String name, Long id);
 
     long countByUserIdAndArchivedFalse(Long userId);
+
+    void deleteAllByUserId(Long userId);
 }
 

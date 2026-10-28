@@ -19,5 +19,7 @@ public interface CreditCardRepository extends JpaRepository<CreditCard, Long> {
     boolean existsByUserIdAndNameIgnoreCase(Long userId, String name);
 
     boolean existsByUserIdAndNameIgnoreCaseAndIdNot(Long userId, String name, Long id);
+
+    void deleteAllByUserId(Long userId);
 }
 

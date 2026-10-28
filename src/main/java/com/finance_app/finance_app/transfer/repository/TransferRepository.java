@@ -17,5 +17,7 @@ public interface TransferRepository extends JpaRepository<Transfer, Long>, JpaSp
     boolean existsByIdAndUserId(Long id, Long userId);
 
     boolean existsByFromAccountIdOrToAccountId(Long fromAccountId, Long toAccountId);
+
+    void deleteAllByUserId(Long userId);
 }
 

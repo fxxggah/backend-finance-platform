@@ -31,3 +31,8 @@ build/
 
 ### VS Code ###
 .vscode/
+
+### Segredos ###
+.env
+application-prod.yml
+

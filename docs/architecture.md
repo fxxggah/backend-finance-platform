@@ -2,7 +2,7 @@
 
 Arquitetura em **camadas**, organizada **por feature**. Cada pessoa trabalha na sua pasta e o conflito de merge cai muito.
 
-> O pacote base real (`<base-package>` abaixo) é o da classe com `@SpringBootApplication`. Confira lá: o `groupId` do `pom.xml` tem hífen (`com.finance-app`), então o Initializr pode ter gerado algo como `com.finance_app.finance_app`. Não presuma.
+> O pacote base real (`<base-package>` abaixo) é o da classe com `@SpringBootApplication`. Confira lá: o `groupId` do `pom.xml` tem hífen (`com.finance-platform`), então o Initializr pode ter gerado algo como `com.finance`. Não presuma.
 
 ## 1. Estrutura de pacotes
 

@@ -1,4 +1,4 @@
-# finance-app: contexto do projeto
+# finance-platform: contexto do projeto
 
 Backend de um sistema web de **gerenciamento financeiro pessoal**. O frontend (Next.js + TypeScript + Tailwind, gerado pelo v0) fica em outro repositório e é responsabilidade do João. Este repositório é o **backend REST**, feito por Biel e Breno.
 

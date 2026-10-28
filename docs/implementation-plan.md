@@ -16,8 +16,8 @@ Leia **no início de cada tarefa**: fase atual, dono e status. Uma feature por v
 
 | Fase | Dono | Conteúdo | Status |
 |---|---|---|---|
-| 0 | Juntos | Fundação do projeto | [ ] |
-| 1 | Breno | Usuário e autenticação | [ ] |
+| 0 | Biel | Fundação do projeto | [ ] |
+| 1 | Biel | Usuário e autenticação | [ ] |
 | 2 | Biel | Contas, categorias, transações | [ ] |
 | 3 | A definir | Metas, dashboard, simulações | [ ] |
 | 4 | A definir | Transferências | [ ] |
@@ -32,7 +32,7 @@ Leia **no início de cada tarefa**: fase atual, dono e status. Uma feature por v
 **Precisa estar no `main` antes de dividir o trabalho.**
 
 - [ ] Projeto Spring Boot, `pom.xml` com as dependências aprovadas, perfis `dev` e `prod`
-- [x] Confirmar o pacote base real (classe com `@SpringBootApplication`) e registrar aqui: `com.finance_app.finance_app`
+- [x] Confirmar o pacote base real (classe com `@SpringBootApplication`) e registrar aqui: `com.finance`
 - [x] `BaseEntity` (`createdAt`/`updatedAt`) + `@EnableJpaAuditing`
 - [ ] `Clock` (`America/Sao_Paulo`) + `hibernate.jdbc.time_zone=UTC`
 - [x] `GlobalExceptionHandler` com `ProblemDetail` e exceções (`ResourceNotFoundException`, `ConflictException`, `BusinessRuleException`)
@@ -42,14 +42,14 @@ Leia **no início de cada tarefa**: fase atual, dono e status. Uma feature por v
 
 ## Fase 1: Usuário e autenticação (Breno)
 
-- [ ] `User`, `RefreshToken`, repositories
-- [ ] `GoogleTokenVerifier` (assinatura, `aud`, `iss`, expiração, `email_verified`)
-- [ ] `JwtService` (`NimbusJwtEncoder`) + `JwtDecoder` via Resource Server; `sub` = id interno
-- [ ] `SecurityConfig` (rotas públicas, stateless, CSRF off, CORS por `CORS_ORIGINS`)
-- [ ] `CurrentUser`
-- [ ] `AuthService`: login Google, criação do usuário **com seed** (categorias padrão + conta "Carteira"), refresh com rotation, logout
-- [ ] `POST /auth/google`, `/auth/refresh`, `/auth/logout`
-- [ ] `GET /users/me`, `DELETE /users/me` (apaga tudo, LGPD)
+- [x] `User`, `RefreshToken`, repositories
+- [x] `GoogleTokenVerifier` (assinatura, `aud`, `iss`, expiração, `email_verified`)
+- [x] `JwtService` (`NimbusJwtEncoder`) + `JwtDecoder` via Resource Server; `sub` = id interno
+- [x] `SecurityConfig` (rotas públicas, stateless, CSRF off, CORS por `CORS_ORIGINS`)
+- [x] `CurrentUser`
+- [x] `AuthService`: login Google, criação do usuário **com seed** (categorias padrão + conta "Carteira"), refresh com rotation, logout
+- [x] `POST /auth/google`, `/auth/refresh`, `/auth/logout`
+- [x] `GET /users/me`, `DELETE /users/me` (apaga tudo, LGPD)
 - [ ] Testes: refresh reutilizado rejeitado, `active = false` não autentica, primeiro login cria seed, segundo login não duplica
 
 ## Fase 2: Contas, categorias, transações (Biel)

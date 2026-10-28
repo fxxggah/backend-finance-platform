@@ -1,4 +1,4 @@
-# finance-app · Contexto e Regras do Agente
+# finance-platform · Contexto e Regras do Agente
 
 Backend de um sistema web de **gerenciamento financeiro pessoal**. O frontend (Next.js + TypeScript + Tailwind, gerado pelo v0) fica em outro repositório e é responsabilidade do João. Este repositório é o **backend REST**, feito por Biel e Breno.
 

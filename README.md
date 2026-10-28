@@ -746,8 +746,8 @@ Versões: **Java 21 (LTS)** e a versão estável mais recente do Spring Boot 3.x
 
 | Fase | Quem | Conteúdo |
 |---|---|---|
-| 0 | Juntos | Projeto Spring, Flyway `V1`, `BaseEntity`, `GlobalExceptionHandler`/`ProblemDetail`, Swagger, perfis. **Precisa estar no `main` antes de dividir.** |
-| 1 | Breno | `User`, `RefreshToken`, validação Google, JWT, `SecurityConfig` |
+| 0 | Gabriel | Projeto Spring, Flyway `V1`, `BaseEntity`, `GlobalExceptionHandler`/`ProblemDetail`, Swagger, perfis. **Precisa estar no `main` antes de dividir.** |
+| 1 | Gabriel | `User`, `RefreshToken`, validação Google, JWT, `SecurityConfig` |
 | 2 | Gabriel | `Account` → `Category` → `Transaction` (já com XOR e campos de cartão no schema; compra no cartão ainda não implementada) |
 | 3 | ??? | `Goal` (3 tipos) e `Dashboard` com `PeriodResolver`; `Simulation` (independente) |
 | 4 | ??? | `Transfer` |

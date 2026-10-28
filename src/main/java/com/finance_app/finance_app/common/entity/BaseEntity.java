@@ -1,4 +1,4 @@
-package com.finance_app.finance_app.common;
+package com.finance_app.finance_app.common.entity;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.EntityListeners;
@@ -25,3 +25,4 @@ public abstract class BaseEntity {
     @Column(name = "updated_at", nullable = false)
     private Instant updatedAt;
 }
+

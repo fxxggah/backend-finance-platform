@@ -8,7 +8,7 @@ Arquitetura em **camadas**, organizada **por feature**. Cada pessoa trabalha na 
 
 ```
 <base-package>
-├── common/          # BaseEntity, enums compartilhados, exceptions, GlobalExceptionHandler, configs gerais (Clock, Jpa auditing)
+├── common/          # Subpacotes: entity/ (BaseEntity), enums/, exception/ (GlobalExceptionHandler, exceptions), config/ (Clock, Jpa auditing)
 ├── security/        # SecurityConfig, JwtService (emitir/validar), GoogleTokenVerifier, CurrentUser
 ├── auth/            # AuthController, AuthService, dto
 ├── user/            # User, UserRepository, UserService, UserController

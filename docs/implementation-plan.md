@@ -32,10 +32,10 @@ Leia **no início de cada tarefa**: fase atual, dono e status. Uma feature por v
 **Precisa estar no `main` antes de dividir o trabalho.**
 
 - [ ] Projeto Spring Boot, `pom.xml` com as dependências aprovadas, perfis `dev` e `prod`
-- [ ] Confirmar o pacote base real (classe com `@SpringBootApplication`) e registrar aqui
-- [ ] `BaseEntity` (`createdAt`/`updatedAt`) + `@EnableJpaAuditing`
+- [x] Confirmar o pacote base real (classe com `@SpringBootApplication`) e registrar aqui: `com.finance_app.finance_app`
+- [x] `BaseEntity` (`createdAt`/`updatedAt`) + `@EnableJpaAuditing`
 - [ ] `Clock` (`America/Sao_Paulo`) + `hibernate.jdbc.time_zone=UTC`
-- [ ] `GlobalExceptionHandler` com `ProblemDetail` e exceções (`ResourceNotFoundException`, `ConflictException`, `BusinessRuleException`)
+- [x] `GlobalExceptionHandler` com `ProblemDetail` e exceções (`ResourceNotFoundException`, `ConflictException`, `BusinessRuleException`)
 - [ ] Swagger/springdoc (só `dev`) e Actuator (`/actuator/health`)
 - [ ] **`V1__init.sql` completo** (tabelas, índices, `CHECK`), revisado pelos dois antes de codar (ver `docs/data-model.md`)
 - [ ] Testcontainers (MySQL) funcionando num teste de "contexto sobe"

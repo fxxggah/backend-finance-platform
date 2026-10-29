@@ -1,4 +1,4 @@
-package com.finance.transaction.dto.response;
+package com.finance.common.dto;
 
 import org.springframework.data.domain.Page;
 

@@ -10,6 +10,7 @@ import com.finance.common.exception.BusinessRuleException;
 import com.finance.common.exception.ConflictException;
 import com.finance.common.exception.ResourceNotFoundException;
 import com.finance.transaction.repository.TransactionRepository;
+import com.finance.transfer.repository.TransferRepository;
 import com.finance.user.entity.User;
 import jakarta.persistence.EntityManager;
 import lombok.RequiredArgsConstructor;
@@ -25,6 +26,7 @@ public class AccountService {
 
     private final TransactionRepository transactionRepository;
     private final AccountRepository accountRepository;
+    private final TransferRepository transferRepository;
     private final EntityManager entityManager;
 
     @Transactional(readOnly = true)
@@ -122,14 +124,20 @@ public class AccountService {
 
     /**
      * Calcula o saldo atual:
-     * Saldo = initialBalance + (receitas - despesas)
+     * Saldo = initialBalance + (receitas - despesas) + (transferências recebidas - enviadas)
      *
-     * TODO Fase 4: somar transferências recebidas e subtrair transferências enviadas.
      * TODO Fase 6: subtrair pagamentos de fatura.
      */
     private BigDecimal calculateBalance(Account account) {
         BigDecimal netTransactions = transactionRepository.getNetBalanceByAccountId(account.getId());
-        return account.getInitialBalance().add(netTransactions);
+
+        BigDecimal totalReceived = transferRepository.sumAmountReceivedByAccountId(account.getId());
+        BigDecimal totalSent = transferRepository.sumAmountSentByAccountId(account.getId());
+
+        return account.getInitialBalance()
+                .add(netTransactions)
+                .add(totalReceived)
+                .subtract(totalSent);
     }
 
     /** TODO Fase 6: somar faturas em aberto quando o módulo de cartão existir. */
@@ -140,9 +148,12 @@ public class AccountService {
     /**
      * Verifica se a conta já foi movimentada para impedir exclusão física.
      *
-     * TODO Fase 4 e 6: adicionar verificação de Transfer e InvoicePayment.
+     * TODO Fase 6: adicionar verificação de InvoicePayment.
      */
     private boolean hasMovements(Account account) {
-        return transactionRepository.existsByAccountIdAndDeletedFalse(account.getId());
+        boolean hasTransactions = transactionRepository.existsByAccountIdAndDeletedFalse(account.getId());
+        boolean hasTransfers = transferRepository.existsByFromAccountIdOrToAccountId(account.getId(), account.getId());
+
+        return hasTransactions || hasTransfers;
     }
 }

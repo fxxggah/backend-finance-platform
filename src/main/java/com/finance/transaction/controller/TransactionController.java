@@ -1,7 +1,7 @@
 package com.finance.transaction.controller;
 
 import com.finance.common.enums.TransactionType;
-import com.finance.transaction.dto.response.PageResponse;
+import com.finance.common.dto.PageResponse;
 import com.finance.transaction.dto.request.TransactionFilter;
 import com.finance.transaction.dto.request.TransactionRequest;
 import com.finance.transaction.dto.response.TransactionResponse;

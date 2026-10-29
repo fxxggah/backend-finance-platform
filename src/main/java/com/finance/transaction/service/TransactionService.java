@@ -4,7 +4,7 @@ import com.finance.account.entity.Account;
 import com.finance.account.repository.AccountRepository;
 import com.finance.category.entity.Category;
 import com.finance.category.repository.CategoryRepository;
-import com.finance.transaction.dto.response.PageResponse;
+import com.finance.common.dto.PageResponse;
 import com.finance.common.enums.TransactionType;
 import com.finance.common.exception.BusinessRuleException;
 import com.finance.common.exception.ResourceNotFoundException;

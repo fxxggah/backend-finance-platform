@@ -13,6 +13,8 @@ public interface CategoryRepository extends JpaRepository<Category, Long> {
 
     Optional<Category> findByIdAndUserIdAndDeletedFalse(Long id, Long userId);
 
+    Optional<Category> findByUserIdAndNameIgnoreCaseAndType(Long userId, String name, TransactionType type);
+
     List<Category> findAllByUserIdAndDeletedFalse(Long userId);
 
     List<Category> findAllByUserIdAndTypeAndDeletedFalse(Long userId, TransactionType type);
@@ -24,7 +26,7 @@ public interface CategoryRepository extends JpaRepository<Category, Long> {
     boolean existsByUserIdAndNameIgnoreCaseAndTypeAndDeletedFalse(Long userId, String name, TransactionType type);
 
     boolean existsByUserIdAndNameIgnoreCaseAndTypeAndDeletedFalseAndIdNot(Long userId, String name,
-            TransactionType type, Long id);
+                                                                          TransactionType type, Long id);
 
     void deleteAllByUserId(Long userId);
 }

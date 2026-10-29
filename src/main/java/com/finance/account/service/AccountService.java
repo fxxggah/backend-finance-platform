@@ -9,6 +9,7 @@ import com.finance.account.repository.AccountRepository;
 import com.finance.common.exception.BusinessRuleException;
 import com.finance.common.exception.ConflictException;
 import com.finance.common.exception.ResourceNotFoundException;
+import com.finance.transaction.repository.TransactionRepository;
 import com.finance.user.entity.User;
 import jakarta.persistence.EntityManager;
 import lombok.RequiredArgsConstructor;
@@ -22,6 +23,7 @@ import java.util.List;
 @RequiredArgsConstructor
 public class AccountService {
 
+    private final TransactionRepository transactionRepository;
     private final AccountRepository accountRepository;
     private final EntityManager entityManager;
 
@@ -119,25 +121,28 @@ public class AccountService {
     }
 
     /**
-     * TODO (quando existirem Transaction, Transfer e InvoicePayment):
-     * saldo = initialBalance + receitas + transferências recebidas
-     *         - despesas - transferências enviadas - pagamentos de fatura.
-     * Por enquanto só existe o saldo inicial.
+     * Calcula o saldo atual:
+     * Saldo = initialBalance + (receitas - despesas)
+     *
+     * TODO Fase 4: somar transferências recebidas e subtrair transferências enviadas.
+     * TODO Fase 6: subtrair pagamentos de fatura.
      */
     private BigDecimal calculateBalance(Account account) {
-        return account.getInitialBalance();
+        BigDecimal netTransactions = transactionRepository.getNetBalanceByAccountId(account.getId());
+        return account.getInitialBalance().add(netTransactions);
     }
 
-    /** TODO: somar faturas em aberto quando o módulo de cartão existir. */
+    /** TODO Fase 6: somar faturas em aberto quando o módulo de cartão existir. */
     private BigDecimal calculateCreditCardDebt(Long userId) {
         return BigDecimal.ZERO;
     }
 
     /**
-     * TODO: retornar true se houver transações, transferências (origem/destino)
-     * ou pagamentos de fatura ligados à conta.
+     * Verifica se a conta já foi movimentada para impedir exclusão física.
+     *
+     * TODO Fase 4 e 6: adicionar verificação de Transfer e InvoicePayment.
      */
     private boolean hasMovements(Account account) {
-        return false;
+        return transactionRepository.existsByAccountIdAndDeletedFalse(account.getId());
     }
 }

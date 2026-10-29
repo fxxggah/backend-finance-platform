@@ -6,6 +6,8 @@ import com.finance.transaction.dto.request.TransactionFilter;
 import com.finance.transaction.dto.request.TransactionRequest;
 import com.finance.transaction.dto.response.TransactionResponse;
 import com.finance.transaction.service.TransactionService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -33,12 +35,14 @@ import java.time.LocalDate;
 @RestController
 @RequestMapping("/api/v1/transactions")
 @RequiredArgsConstructor
-@Tag(name = "Transações")
+@Tag(name = "Transações", description = "Gerenciamento de receitas e despesas")
+@SecurityRequirement(name = "bearer-token")
 public class TransactionController {
 
     private final TransactionService transactionService;
 
     @GetMapping
+    @Operation(summary = "Listar transações", description = "Retorna uma lista paginada de transações do usuário logado, com suporte a filtros dinâmicos.")
     public PageResponse<TransactionResponse> list(
             @AuthenticationPrincipal Jwt jwt,
             @RequestParam(name = "from", required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
@@ -56,12 +60,14 @@ public class TransactionController {
     }
 
     @GetMapping("/{id}")
+    @Operation(summary = "Buscar transação por ID", description = "Retorna os detalhes de uma transação específica.")
     public TransactionResponse findById(@AuthenticationPrincipal Jwt jwt, @PathVariable Long id) {
         return transactionService.findById(userId(jwt), id);
     }
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
+    @Operation(summary = "Criar transação", description = "Cria uma nova transação (receita ou despesa) vinculada a uma conta ou cartão.")
     public TransactionResponse create(
             @AuthenticationPrincipal Jwt jwt,
             @Valid @RequestBody TransactionRequest request) {
@@ -69,6 +75,7 @@ public class TransactionController {
     }
 
     @PutMapping("/{id}")
+    @Operation(summary = "Atualizar transação", description = "Atualiza os dados de uma transação existente. Não permite alterar o valor ou parcelas se for uma compra parcelada.")
     public TransactionResponse update(
             @AuthenticationPrincipal Jwt jwt,
             @PathVariable Long id,
@@ -78,6 +85,7 @@ public class TransactionController {
 
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
+    @Operation(summary = "Excluir transação", description = "Realiza a exclusão (soft delete) de uma transação. Se for parcelada, exclui o grupo inteiro.")
     public void delete(@AuthenticationPrincipal Jwt jwt, @PathVariable Long id) {
         transactionService.delete(userId(jwt), id);
     }

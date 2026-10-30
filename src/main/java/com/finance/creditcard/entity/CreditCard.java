@@ -1,5 +1,6 @@
 package com.finance.creditcard.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.finance.common.entity.BaseEntity;
 import com.finance.user.entity.User;
 import jakarta.persistence.Column;
@@ -28,6 +29,7 @@ public class CreditCard extends BaseEntity {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    @JsonIgnore
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "user_id", nullable = false)
     private User user;

@@ -8,6 +8,8 @@ import com.finance.common.dto.PageResponse;
 import com.finance.common.enums.TransactionType;
 import com.finance.common.exception.BusinessRuleException;
 import com.finance.common.exception.ResourceNotFoundException;
+import com.finance.creditcard.entity.CreditCard;
+import com.finance.creditcard.repository.CreditCardRepository;
 import com.finance.transaction.dto.request.TransactionFilter;
 import com.finance.transaction.dto.request.TransactionRequest;
 import com.finance.transaction.dto.response.TransactionResponse;
@@ -40,6 +42,7 @@ public class TransactionService {
     private final AccountRepository accountRepository;
     private final CategoryRepository categoryRepository;
     private final UserRepository userRepository;
+    private final CreditCardRepository creditCardRepository; // Adicionado para Fase 5/6
 
     @Transactional(readOnly = true)
     public PageResponse<TransactionResponse> list(Long userId, TransactionFilter filter, Pageable pageable) {
@@ -66,7 +69,18 @@ public class TransactionService {
         validateDate(request.date());
 
         Category category = loadCategory(userId, request.categoryId(), request.type(), null);
-        Account account = loadAccount(userId, request.accountId(), null);
+
+        Account account = null;
+        CreditCard card = null;
+        LocalDate invoiceReference = null;
+
+        // Associa Conta OU Cartão de Crédito
+        if (request.accountId() != null) {
+            account = loadAccount(userId, request.accountId(), null);
+        } else if (request.creditCardId() != null) {
+            card = loadCreditCard(userId, request.creditCardId(), null);
+            invoiceReference = calculateInvoiceReference(request.date(), card.getClosingDay());
+        }
 
         Transaction tx = new Transaction();
         tx.setUser(userRepository.getReferenceById(userId));
@@ -77,6 +91,8 @@ public class TransactionService {
         tx.setNotes(request.notes());
         tx.setCategory(category);
         tx.setAccount(account);
+        tx.setCreditCard(card);
+        tx.setInvoiceReference(invoiceReference);
 
         return TransactionResponse.from(transactionRepository.save(tx));
     }
@@ -147,7 +163,6 @@ public class TransactionService {
     }
 
     private Transaction getOwnedOrThrow(Long userId, Long id) {
-        // 404 (e não 403) para recurso de outro usuário
         return transactionRepository.findByIdAndUserIdAndDeletedFalse(id, userId)
                 .orElseThrow(() -> new ResourceNotFoundException("Transação não encontrada"));
     }
@@ -163,8 +178,6 @@ public class TransactionService {
             if (request.type() != TransactionType.EXPENSE) {
                 throw new BusinessRuleException("Cartão de crédito aceita apenas despesas");
             }
-            // TODO fases 5/6: calcular invoiceReference, gerar parcelas e validar o cartão
-            throw new BusinessRuleException("Compras no cartão de crédito ainda não estão disponíveis");
         }
         if (request.installments() != null && request.installments() > 1) {
             throw new BusinessRuleException("Parcelamento disponível apenas para compras no cartão de crédito");
@@ -177,9 +190,6 @@ public class TransactionService {
         }
     }
 
-    /**
-     * Data futura permitida até 1 ano à frente (parcelas, até 24 meses, entram na fase 6).
-     */
     private void validateDate(LocalDate date) {
         LocalDate limit = LocalDate.now(ZONE).plusYears(1);
         if (date.isAfter(limit)) {
@@ -187,11 +197,6 @@ public class TransactionService {
         }
     }
 
-    /**
-     * Categoria deve ser do usuário e do mesmo tipo da transação.
-     * Categoria excluída só é recusada quando está sendo atribuída agora
-     * (editar outros campos de uma transação antiga não deve ser bloqueado).
-     */
     private Category loadCategory(Long userId, Long categoryId, TransactionType type, Category current) {
         Category category = categoryRepository.findByIdAndUserId(categoryId, userId)
                 .orElseThrow(() -> new ResourceNotFoundException("Categoria não encontrada"));
@@ -206,9 +211,6 @@ public class TransactionService {
         return category;
     }
 
-    /**
-     * Conta deve ser do usuário. Conta arquivada só é recusada quando está sendo atribuída agora.
-     */
     private Account loadAccount(Long userId, Long accountId, Account current) {
         Account account = accountRepository.findByIdAndUserId(accountId, userId)
                 .orElseThrow(() -> new ResourceNotFoundException("Conta não encontrada"));
@@ -220,12 +222,27 @@ public class TransactionService {
         return account;
     }
 
-    // ------------------------------------------------------------------ paginação
+    // Carrega o Cartão e verifica se é válido
+    private CreditCard loadCreditCard(Long userId, Long cardId, CreditCard current) {
+        CreditCard card = creditCardRepository.findByIdAndUserId(cardId, userId)
+                .orElseThrow(() -> new ResourceNotFoundException("Cartão de crédito não encontrado"));
 
-    /**
-     * Limita o tamanho da página a 100, aceita apenas campos de ordenação conhecidos
-     * e adiciona o id como desempate para paginação estável.
-     */
+        boolean changed = current == null || !current.getId().equals(card.getId());
+        if (changed && card.isArchived()) {
+            throw new BusinessRuleException("Não é possível usar um cartão arquivado");
+        }
+        return card;
+    }
+
+    // Calcula em que fatura a compra entra (se data > dia de fecho, entra no mês seguinte)
+    private LocalDate calculateInvoiceReference(LocalDate purchaseDate, int closingDay) {
+        LocalDate ref = purchaseDate.withDayOfMonth(1);
+        if (purchaseDate.getDayOfMonth() > closingDay) {
+            ref = ref.plusMonths(1);
+        }
+        return ref;
+    }
+
     private Pageable sanitize(Pageable pageable) {
         List<Sort.Order> orders = pageable.getSort().stream()
                 .filter(o -> ALLOWED_SORT.contains(o.getProperty()))

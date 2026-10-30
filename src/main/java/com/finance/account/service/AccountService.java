@@ -9,6 +9,9 @@ import com.finance.account.repository.AccountRepository;
 import com.finance.common.exception.BusinessRuleException;
 import com.finance.common.exception.ConflictException;
 import com.finance.common.exception.ResourceNotFoundException;
+import com.finance.creditcard.entity.CreditCard;
+import com.finance.creditcard.repository.CreditCardRepository;
+import com.finance.creditcard.repository.InvoicePaymentRepository;
 import com.finance.transaction.repository.TransactionRepository;
 import com.finance.transfer.repository.TransferRepository;
 import com.finance.user.entity.User;
@@ -27,6 +30,8 @@ public class AccountService {
     private final TransactionRepository transactionRepository;
     private final AccountRepository accountRepository;
     private final TransferRepository transferRepository;
+    private final InvoicePaymentRepository invoicePaymentRepository;
+    private final CreditCardRepository creditCardRepository;
     private final EntityManager entityManager;
 
     @Transactional(readOnly = true)
@@ -124,9 +129,7 @@ public class AccountService {
 
     /**
      * Calcula o saldo atual:
-     * Saldo = initialBalance + (receitas - despesas) + (transferências recebidas - enviadas)
-     *
-     * TODO Fase 6: subtrair pagamentos de fatura.
+     * Saldo = initialBalance + (receitas - despesas) + (transferências recebidas - enviadas) - pagamentos de fatura
      */
     private BigDecimal calculateBalance(Account account) {
         BigDecimal netTransactions = transactionRepository.getNetBalanceByAccountId(account.getId());
@@ -134,26 +137,43 @@ public class AccountService {
         BigDecimal totalReceived = transferRepository.sumAmountReceivedByAccountId(account.getId());
         BigDecimal totalSent = transferRepository.sumAmountSentByAccountId(account.getId());
 
+        // Busca o total de faturas pagas usando esta conta
+        BigDecimal totalInvoicePayments = invoicePaymentRepository.sumPaymentsByAccountId(account.getId());
+
         return account.getInitialBalance()
                 .add(netTransactions)
                 .add(totalReceived)
-                .subtract(totalSent);
+                .subtract(totalSent)
+                .subtract(totalInvoicePayments);
     }
 
-    /** TODO Fase 6: somar faturas em aberto quando o módulo de cartão existir. */
+    /** Calcula a dívida total de faturas de cartão de crédito em aberto (não pagas). */
     private BigDecimal calculateCreditCardDebt(Long userId) {
-        return BigDecimal.ZERO;
+        List<CreditCard> activeCards = creditCardRepository.findAllByUserIdAndArchivedFalse(userId);
+
+        BigDecimal totalDebt = BigDecimal.ZERO;
+
+        for (CreditCard card : activeCards) {
+            BigDecimal totalSpent = transactionRepository.sumTotalAmountByCreditCardId(card.getId());
+            BigDecimal totalPaid = invoicePaymentRepository.sumTotalPaymentsByCreditCardId(card.getId());
+            BigDecimal cardDebt = totalSpent.subtract(totalPaid);
+
+            if (cardDebt.compareTo(BigDecimal.ZERO) > 0) {
+                totalDebt = totalDebt.add(cardDebt);
+            }
+        }
+
+        return totalDebt;
     }
 
     /**
      * Verifica se a conta já foi movimentada para impedir exclusão física.
-     *
-     * TODO Fase 6: adicionar verificação de InvoicePayment.
      */
     private boolean hasMovements(Account account) {
         boolean hasTransactions = transactionRepository.existsByAccountIdAndDeletedFalse(account.getId());
         boolean hasTransfers = transferRepository.existsByFromAccountIdOrToAccountId(account.getId(), account.getId());
+        boolean hasInvoicePayments = invoicePaymentRepository.existsByAccountId(account.getId());
 
-        return hasTransactions || hasTransfers;
+        return hasTransactions || hasTransfers || hasInvoicePayments;
     }
 }

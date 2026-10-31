@@ -749,7 +749,7 @@ Versões: **Java 21 (LTS)** e a versão estável mais recente do Spring Boot 3.x
 | 0 | Projeto Spring, Flyway `V1`, `BaseEntity`, `GlobalExceptionHandler`/`ProblemDetail`, Swagger, perfis. **Precisa estar no `main` antes de dividir.** | Feito |
 | 1 | `User`, `RefreshToken`, validação Google, JWT, `SecurityConfig` | Feito |
 | 2 | `Account` → `Category` → `Transaction` (já com XOR e campos de cartão no schema; compra no cartão ainda não implementada) | Feito |
-| 3 | `Goal` (3 tipos) e `Dashboard` com `PeriodResolver`; `Simulation` (independente) | ... |
+| 3 | `Goal` (3 tipos) e `Dashboard` com `PeriodResolver`; `Simulation` (independente) | Feito |
 | 4 | `Transfer` | Feito |
 | 5 | `CreditCard` + faturas, compra **à vista** primeiro | Feito |
 | 6 | Parcelamento → `InvoicePayment` → limite | Feito |

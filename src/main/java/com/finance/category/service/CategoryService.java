@@ -13,6 +13,8 @@ import jakarta.persistence.EntityManager;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import com.finance.goal.repository.GoalRepository;
+import com.finance.transaction.repository.TransactionRepository;
 
 import java.util.List;
 import java.util.Optional;
@@ -24,6 +26,8 @@ public class CategoryService {
     private static final String DUPLICATE_MESSAGE = "Já existe uma categoria com esse nome para esse tipo";
 
     private final CategoryRepository categoryRepository;
+    private final TransactionRepository transactionRepository;
+    private final GoalRepository goalRepository;
     private final EntityManager entityManager;
 
     @Transactional(readOnly = true)
@@ -112,6 +116,7 @@ public class CategoryService {
      * (ou metas) ligadas à categoria. Por enquanto sempre false, então o DELETE exclui de vez.
      */
     private boolean hasTransactions(Category category) {
-        return false;
+        return transactionRepository.existsByCategoryIdAndDeletedFalse(category.getId())
+                || goalRepository.existsByCategoryId(category.getId()); // ajuste ao nome real
     }
 }

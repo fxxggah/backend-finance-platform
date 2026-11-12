@@ -1,5 +1,20 @@
 package com.finance.creditcard.repository;
 
+import com.finance.transaction.repository.TransactionRepository;
+import com.finance.transfer.repository.TransferRepository;
+import com.finance.category.entity.Category;
+import com.finance.common.enums.TransactionType;
+import com.finance.common.enums.InvoiceStatus;
+import com.finance.creditcard.service.InvoiceService;
+import com.finance.account.service.AccountService;
+import com.finance.creditcard.service.CreditCardService;
+import com.finance.common.util.CreditCardDateUtil;
+import com.finance.creditcard.dto.request.InvoicePaymentRequest;
+import com.finance.transaction.entity.Transaction;
+import java.time.Clock;
+import java.time.Instant;
+import java.time.ZoneId;
+
 import com.finance.account.entity.Account;
 import com.finance.account.repository.AccountRepository;
 import com.finance.common.enums.AccountType;
@@ -59,6 +74,11 @@ class InvoicePaymentRepositoryTest {
 
     @Autowired
     private EntityManager entityManager;
+
+    @Autowired
+    private TransactionRepository transactionRepository;
+    @Autowired
+    private TransferRepository transferRepository;
 
     private User owner;
     private User other;
@@ -261,5 +281,65 @@ class InvoicePaymentRepositoryTest {
 
         assertThat(paymentRepository.existsByCreditCardId(card.getId())).isFalse();
         assertThat(paymentRepository.findById(others.getId())).isPresent();
+    }
+    @Test
+    @DisplayName("antecipação: persiste pagamento e atualiza resumo, saldo e limite após recarga")
+    void advancePayment_shouldPersistAndUpdateFinancialSummaries() {
+        card.setClosingDay(25);
+        account.setInitialBalance(new BigDecimal("2000.00"));
+        entityManager.flush();
+        Category category = new Category(
+                owner, "Mercado", TransactionType.EXPENSE, "#3B82F6", "tag");
+        entityManager.persist(category);
+        persistPurchase(category, "1000.00");
+
+        Clock clock = Clock.fixed(Instant.parse("2026-10-20T15:00:00Z"),
+                ZoneId.of("America/Sao_Paulo"));
+        InvoiceService invoices = new InvoiceService(
+                transactionRepository, paymentRepository, accountRepository, new CreditCardDateUtil(), clock);
+        AccountService accounts = new AccountService(
+                transactionRepository, accountRepository, transferRepository, paymentRepository, creditCardRepository, entityManager);
+        CreditCardService cards = new CreditCardService(
+                creditCardRepository, transactionRepository, paymentRepository, invoices, entityManager);
+
+        invoices.payInvoice(owner.getId(), card, "2026-10", new InvoicePaymentRequest(
+                account.getId(), new BigDecimal("400.00"), PAY_DATE));
+        entityManager.flush();
+        entityManager.clear();
+
+        assertThat(invoices.getInvoiceSummary(card, OCT).paid()).isEqualByComparingTo("400.00");
+        assertThat(invoices.getInvoiceSummary(card, OCT).status()).isEqualTo(InvoiceStatus.OPEN);
+        assertThat(accounts.list(owner.getId(), false).totalBalance()).isEqualByComparingTo("1600.00");
+        assertThat(accounts.list(owner.getId(), false).creditCardDebt()).isEqualByComparingTo("600.00");
+        var response = cards.list(owner.getId()).stream().filter(c -> c.id().equals(card.getId())).findFirst().orElseThrow();
+        assertThat(response.usedLimit()).isEqualByComparingTo("600.00");
+        assertThat(response.availableLimit()).isEqualByComparingTo("4400.00");
+
+        invoices.payInvoice(owner.getId(), card, "2026-10", new InvoicePaymentRequest(
+                account.getId(), new BigDecimal("600.00"), PAY_DATE));
+        entityManager.flush();
+        entityManager.clear();
+        assertThat(invoices.getInvoiceSummary(card, OCT).paid()).isEqualByComparingTo("1000.00");
+        assertThat(invoices.getInvoiceSummary(card, OCT).status()).isEqualTo(InvoiceStatus.OPEN);
+
+        persistPurchase(category, "200.00");
+        entityManager.clear();
+        assertThat(invoices.getInvoiceSummary(card, OCT).total()).isEqualByComparingTo("1200.00");
+        assertThat(invoices.getInvoiceSummary(card, OCT).paid()).isEqualByComparingTo("1000.00");
+        assertThat(invoices.getInvoiceSummary(card, OCT).status()).isEqualTo(InvoiceStatus.OPEN);
+        assertThat(accounts.list(owner.getId(), false).creditCardDebt()).isEqualByComparingTo("200.00");
+        assertThat(transactionRepository.findDistinctInvoiceReferencesByCreditCardId(card.getId())).containsExactly(OCT);
+    }
+
+    private void persistPurchase(Category category, String amount) {
+        Transaction purchase = new Transaction();
+        purchase.setUser(owner);
+        purchase.setCreditCard(card);
+        purchase.setCategory(category);
+        purchase.setType(TransactionType.EXPENSE);
+        purchase.setAmount(new BigDecimal(amount));
+        purchase.setDate(PAY_DATE);
+        purchase.setInvoiceReference(OCT);
+        transactionRepository.saveAndFlush(purchase);
     }
 }

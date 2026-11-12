@@ -449,15 +449,16 @@ class CreditCardControllerTest {
     void payInvoice_shouldReturnClientError_whenBusinessRuleIsViolated() throws Exception {
         CreditCard card = sampleCard();
         when(creditCardService.getCardOrThrow(CARD_ID, USER_ID)).thenReturn(card);
-        doThrow(new BusinessRuleException("Não é possível pagar uma fatura aberta."))
+        doThrow(new BusinessRuleException("O valor do pagamento não pode ser maior que o saldo restante da fatura."))
                 .when(invoiceService).payInvoice(eq(USER_ID), eq(card), eq(REFERENCE), any(InvoicePaymentRequest.class));
 
-        // O status exato depende do handler global (400/422); ajuste se quiser fixar.
         mockMvc.perform(post(URL + "/" + CARD_ID + "/invoices/" + REFERENCE + "/payments")
                         .with(user1()).with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(VALID_PAYMENT_BODY))
-                .andExpect(status().is4xxClientError());
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.status").value(422))
+                .andExpect(jsonPath("$.detail").value("O valor do pagamento não pode ser maior que o saldo restante da fatura."));
     }
 
     // ---------- DELETE /api/v1/credit-cards/{id}/invoices/{reference}/payments/{paymentId} ----------

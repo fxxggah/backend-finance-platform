@@ -154,3 +154,12 @@ Ideias que apareceram no caminho e **não** serão implementadas agora. Anote aq
 
 - Estorno de compra no cartão, juros/multa/rotativo/IOF, cartão adicional, cashback, importação de extrato/fatura, transações recorrentes, orçamento recorrente, metas vinculadas a conta, simulações salvas, multi-moeda, notificações, imagem em meta.
 - Rate limit em `/auth/*` (Bucket4j) e cache do dashboard: só após medir.
+
+## Ajuste: pagamento antecipado de faturas
+
+- [x] Permitir pagamento parcial/total antes do fechamento, preservando OPEN e os cálculos derivados.
+- [x] Clock injetado no InvoiceService e cobertura unitária determinística; contrato e testes HTTP atualizados.
+- [x] Compilação com JDK 25 e suíte completa: 850 testes, sem falhas.
+- [x] Frontend: build, 18 testes de API/mock e smoke de faturas em 390/1440 px com transporte controlado.
+- [x] Teste integrado adicional com MySQL: antecipação, recarga, saldo, limite e novas compras. Suíte de pagamentos: 15 testes, sem falhas (851 casos no conjunto das suítes).
+- [ ] Validação manual com sessão Google real e publicação coordenada (backend antes do frontend).

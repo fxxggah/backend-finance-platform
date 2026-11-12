@@ -18,7 +18,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
-import java.time.ZoneId;
+import java.time.Clock;
 import java.util.List;
 
 @Service
@@ -29,6 +29,7 @@ public class InvoiceService {
     private final InvoicePaymentRepository paymentRepository;
     private final AccountRepository accountRepository;
     private final CreditCardDateUtil dateUtil;
+    private final Clock clock;
 
     // Constrói o estado de uma fatura específica
     public InvoiceResponse getInvoiceSummary(CreditCard card, LocalDate reference) {
@@ -63,10 +64,6 @@ public class InvoiceService {
         LocalDate reference = dateUtil.parseReference(referenceStr);
         InvoiceResponse invoice = getInvoiceSummary(card, reference);
 
-        if (invoice.status() == InvoiceStatus.OPEN) {
-            throw new BusinessRuleException("Não é possível pagar uma fatura aberta.");
-        }
-
         BigDecimal remaining = invoice.total().subtract(invoice.paid());
         if (request.amount().compareTo(remaining) > 0) {
             throw new BusinessRuleException("O valor do pagamento não pode ser maior que o saldo restante da fatura.");
@@ -99,7 +96,7 @@ public class InvoiceService {
     }
 
     private InvoiceStatus determineStatus(BigDecimal total, BigDecimal paid, LocalDate closingDate, LocalDate dueDate) {
-        LocalDate today = LocalDate.now(ZoneId.of("America/Sao_Paulo"));
+        LocalDate today = LocalDate.now(clock);
 
         if (!today.isAfter(closingDate)) return InvoiceStatus.OPEN;
         if (total.compareTo(BigDecimal.ZERO) == 0 || paid.compareTo(total) >= 0) return InvoiceStatus.PAID;

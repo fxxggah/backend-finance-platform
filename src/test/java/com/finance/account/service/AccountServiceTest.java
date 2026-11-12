@@ -461,4 +461,24 @@ class AccountServiceTest {
         verify(accountRepository, never()).delete(any(Account.class));
         verify(accountRepository, never()).save(any(Account.class));
     }
+
+    @Test
+    @DisplayName("list: antecipação reduz saldo e dívida sem depender do fechamento")
+    void list_shouldDeductAdvancePaymentsFromBalanceAndDebt() {
+        Account account = account(ACCOUNT_ID, "Banco", "2000.00", false);
+        CreditCard card = mock(CreditCard.class);
+        when(card.getId()).thenReturn(20L);
+        when(accountRepository.findAllByUserIdAndArchivedFalse(USER_ID)).thenReturn(List.of(account));
+        when(creditCardRepository.findAllByUserIdAndArchivedFalse(USER_ID)).thenReturn(List.of(card));
+        stubBalance(ACCOUNT_ID, "0.00", "0.00", "0.00", "400.00");
+        when(transactionRepository.sumTotalAmountByCreditCardId(20L)).thenReturn(new BigDecimal("1000.00"));
+        when(invoicePaymentRepository.sumTotalPaymentsByCreditCardId(20L)).thenReturn(new BigDecimal("400.00"));
+
+        AccountListResponse response = accountService.list(USER_ID, false);
+
+        assertThat(response.accounts().getFirst().balance()).isEqualByComparingTo("1600.00");
+        assertThat(response.totalBalance()).isEqualByComparingTo("1600.00");
+        assertThat(response.creditCardDebt()).isEqualByComparingTo("600.00");
+    }
+
 }

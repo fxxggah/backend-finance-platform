@@ -149,7 +149,7 @@ Ordenação padrão: `date,desc`.
 
 - `availableLimit` pode ser **negativo** (estourar o limite não bloqueia).
 - `status` da fatura: `OPEN`, `CLOSED`, `PARTIALLY_PAID`, `PAID`, `OVERDUE` (calculado).
-- Pagamento em fatura `OPEN`, ou que faça a soma passar do total → `422`.
+- Pagamento permitido também em fatura `OPEN`, sem alterar seu ciclo de fechamento. A soma dos pagamentos não pode ultrapassar o total atual → `422`. POST de pagamento mantém payload `{ accountId, amount, date }` e resposta `201` sem corpo.
 
 ## 9. Dashboard
 

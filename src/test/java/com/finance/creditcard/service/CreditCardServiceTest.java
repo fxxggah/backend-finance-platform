@@ -376,4 +376,22 @@ class CreditCardServiceTest {
         assertThat(response.archived()).isFalse();
         assertThat(response.currentInvoice()).isEqualTo(INVOICE);
     }
+
+    @Test
+    @DisplayName("list: antecipação libera limite enquanto a fatura continua OPEN")
+    void list_shouldReleaseLimitWithOpenInvoicePayment() {
+        CreditCard card = card(CARD_ID, "Banco");
+        when(creditCardRepository.findAllByUserIdAndArchivedFalse(USER_ID)).thenReturn(List.of(card));
+        stubTotals(CARD_ID, "1000.00", "400.00");
+        when(invoiceService.getInvoiceSummary(eq(card), any(LocalDate.class))).thenReturn(
+                new InvoiceResponse("2026-10", LocalDate.of(2026, 10, 25), LocalDate.of(2026, 11, 2),
+                        new BigDecimal("1000.00"), new BigDecimal("400.00"), InvoiceStatus.OPEN));
+
+        CreditCardResponse response = creditCardService.list(USER_ID).getFirst();
+
+        assertThat(response.usedLimit()).isEqualByComparingTo("600.00");
+        assertThat(response.availableLimit()).isEqualByComparingTo("4400.00");
+        assertThat(response.currentInvoice().status()).isEqualTo(InvoiceStatus.OPEN);
+    }
+
 }

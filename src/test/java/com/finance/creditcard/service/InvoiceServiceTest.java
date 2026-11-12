@@ -15,13 +15,17 @@ import com.finance.transaction.repository.TransactionRepository;
 import com.finance.user.entity.User;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.math.BigDecimal;
+import java.time.Clock;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.List;
@@ -45,7 +49,7 @@ class InvoiceServiceTest {
     private static final Long ACCOUNT_ID = 3L;
     private static final Long PAYMENT_ID = 77L;
 
-    private static final LocalDate TODAY = LocalDate.now(ZoneId.of("America/Sao_Paulo"));
+    private static final LocalDate TODAY = LocalDate.of(2026, 10, 20);
     private static final LocalDate REFERENCE = LocalDate.of(2026, 10, 1);
     private static final String REFERENCE_STR = "2026-10";
 
@@ -63,8 +67,13 @@ class InvoiceServiceTest {
     @Mock
     private CreditCardDateUtil dateUtil;
 
-    @InjectMocks
     private InvoiceService invoiceService;
+
+    @BeforeEach
+    void setUp() {
+        Clock clock = Clock.fixed(Instant.parse("2026-10-20T15:00:00Z"), ZoneId.of("America/Sao_Paulo"));
+        invoiceService = new InvoiceService(transactionRepository, paymentRepository, accountRepository, dateUtil, clock);
+    }
 
     // ---------- helpers ----------
 
@@ -252,16 +261,48 @@ class InvoiceServiceTest {
         verify(paymentRepository).save(any(InvoicePayment.class));
     }
 
-    @Test
-    @DisplayName("payInvoice: deve lançar BusinessRuleException ao pagar fatura aberta")
-    void payInvoice_shouldThrow_whenInvoiceIsOpen() {
+    @ParameterizedTest
+    @CsvSource({"3, 100.00", "3, 800.00", "0, 100.00", "0, 800.00"})
+    @DisplayName("payInvoice: permite pagamento parcial ou total antes e no dia do fechamento")
+    void payInvoice_shouldAllowOpenInvoice(int daysUntilClosing, String amount) {
+        CreditCard card = card();
+        Account account = mock(Account.class);
         when(dateUtil.parseReference(REFERENCE_STR)).thenReturn(REFERENCE);
-        stubInvoice("1000.00", "0.00", TODAY.plusDays(3), TODAY.plusDays(10));
+        stubInvoice("1000.00", "200.00", TODAY.plusDays(daysUntilClosing), TODAY.plusDays(10));
+        when(accountRepository.findByIdAndUserId(ACCOUNT_ID, USER_ID)).thenReturn(Optional.of(account));
 
-        assertThatThrownBy(() -> invoiceService.payInvoice(USER_ID, card(), REFERENCE_STR, paymentRequest("100.00")))
+        invoiceService.payInvoice(USER_ID, card, REFERENCE_STR, paymentRequest(amount));
+
+        ArgumentCaptor<InvoicePayment> captor = ArgumentCaptor.forClass(InvoicePayment.class);
+        verify(paymentRepository).save(captor.capture());
+        assertThat(captor.getValue().getAmount()).isEqualByComparingTo(amount);
+        assertThat(captor.getValue().getCreditCard()).isSameAs(card);
+        assertThat(captor.getValue().getUser()).isSameAs(card.getUser());
+        assertThat(captor.getValue().getAccount()).isSameAs(account);
+        assertThat(captor.getValue().getInvoiceReference()).isEqualTo(REFERENCE);
+        assertThat(captor.getValue().getDate()).isEqualTo(TODAY);
+    }
+
+    @ParameterizedTest
+    @CsvSource({"1000.00, 400.00", "1000.00, 1000.00", "1200.00, 1000.00"})
+    @DisplayName("getInvoiceSummary: mantém OPEN após pagamento parcial, total ou novas compras")
+    void getInvoiceSummary_shouldStayOpenAfterAdvancePayment(String total, String paid) {
+        stubInvoice(total, paid, TODAY.plusDays(3), TODAY.plusDays(10));
+        InvoiceResponse result = invoiceService.getInvoiceSummary(card(), REFERENCE);
+        assertThat(result.status()).isEqualTo(InvoiceStatus.OPEN);
+        assertThat(result.total()).isEqualByComparingTo(total);
+        assertThat(result.paid()).isEqualByComparingTo(paid);
+    }
+
+    @ParameterizedTest
+    @CsvSource({"1000.00, 200.00, 800.01", "1000.00, 1000.00, 0.01", "0.00, 0.00, 0.01"})
+    @DisplayName("payInvoice: rejeita excesso e ausência de saldo também em fatura aberta")
+    void payInvoice_shouldRejectExcessOnOpenInvoice(String total, String paid, String amount) {
+        when(dateUtil.parseReference(REFERENCE_STR)).thenReturn(REFERENCE);
+        stubInvoice(total, paid, TODAY.plusDays(3), TODAY.plusDays(10));
+        assertThatThrownBy(() -> invoiceService.payInvoice(USER_ID, card(), REFERENCE_STR, paymentRequest(amount)))
                 .isInstanceOf(BusinessRuleException.class)
-                .hasMessage("Não é possível pagar uma fatura aberta.");
-
+                .hasMessage("O valor do pagamento não pode ser maior que o saldo restante da fatura.");
         verify(paymentRepository, never()).save(any(InvoicePayment.class));
         verify(accountRepository, never()).findByIdAndUserId(any(), any());
     }
@@ -342,4 +383,13 @@ class InvoiceServiceTest {
 
         verify(paymentRepository, never()).delete(any(InvoicePayment.class));
     }
+
+    @ParameterizedTest
+    @CsvSource({"1000.00, 1000.00, 5, PAID", "1000.00, 400.00, 5, PARTIALLY_PAID", "1000.00, 0.00, 5, CLOSED", "1000.00, 400.00, -1, OVERDUE"})
+    @DisplayName("getInvoiceSummary: após o fechamento aplica quitação, vencimento e pagamento parcial")
+    void getInvoiceSummary_shouldResolveStatusAfterClosing(String total, String paid, int dueOffset, InvoiceStatus expected) {
+        stubInvoice(total, paid, TODAY.minusDays(1), TODAY.plusDays(dueOffset));
+        assertThat(invoiceService.getInvoiceSummary(card(), REFERENCE).status()).isEqualTo(expected);
+    }
+
 }

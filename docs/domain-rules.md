@@ -136,7 +136,7 @@ pago  = SUM(InvoicePayment do cartão com o invoiceReference)
 
 ### Pagamento de fatura (`InvoicePayment`)
 
-- Só em fatura com status diferente de `OPEN` (o total ainda não é final) → senão **422**.
+- Permite antecipação parcial ou total em fatura `OPEN`, até o saldo devedor atual. A fatura continua `OPEN` até o fechamento, inclusive, e aceita novas compras; o total pago permanece no resumo.
 - Aceita pagamento parcial; a soma dos pagamentos **não pode passar do total** (422).
 - Conta de origem do usuário e não arquivada.
 - **Não é despesa**: não entra em receitas/despesas do dashboard. Reduz o saldo da conta.

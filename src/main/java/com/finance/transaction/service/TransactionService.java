@@ -25,10 +25,14 @@ import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.ZoneId;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
+import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
@@ -68,33 +72,101 @@ public class TransactionService {
         validateAmount(request);
         validateDate(request.date());
 
-        Category category = loadCategory(userId, request.categoryId(), request.type(), null);
+        int installments = request.installments() == null
+                ? 1
+                : request.installments();
+
+        if (installments < 1 || installments > 24) {
+            throw new BusinessRuleException(
+                    "A quantidade de parcelas deve estar entre 1 e 24"
+            );
+        }
+
+        Category category = loadCategory(
+                userId,
+                request.categoryId(),
+                request.type(),
+                null
+        );
 
         Account account = null;
         CreditCard card = null;
-        LocalDate invoiceReference = null;
+        LocalDate firstInvoiceReference = null;
 
-        // Associa Conta OU Cartão de Crédito
         if (request.accountId() != null) {
             account = loadAccount(userId, request.accountId(), null);
-        } else if (request.creditCardId() != null) {
+        } else {
             card = loadCreditCard(userId, request.creditCardId(), null);
-            invoiceReference = calculateInvoiceReference(request.date(), card.getClosingDay());
+            firstInvoiceReference = calculateInvoiceReference(
+                    request.date(),
+                    card.getClosingDay()
+            );
         }
 
-        Transaction tx = new Transaction();
-        tx.setUser(userRepository.getReferenceById(userId));
-        tx.setType(request.type());
-        tx.setAmount(request.amount());
-        tx.setDate(request.date());
-        tx.setDescription(request.description());
-        tx.setNotes(request.notes());
-        tx.setCategory(category);
-        tx.setAccount(account);
-        tx.setCreditCard(card);
-        tx.setInvoiceReference(invoiceReference);
+        BigDecimal totalAmount = request.amount();
+        BigDecimal installmentAmount = totalAmount.divide(
+                BigDecimal.valueOf(installments),
+                2,
+                RoundingMode.DOWN
+        );
 
-        return TransactionResponse.from(transactionRepository.save(tx));
+        // Evita gerar parcelas com valor zero.
+        if (installmentAmount.signum() <= 0) {
+            throw new BusinessRuleException(
+                    "O valor da compra é insuficiente para a quantidade de parcelas"
+            );
+        }
+
+        BigDecimal lastInstallmentAmount = totalAmount.subtract(
+                installmentAmount.multiply(BigDecimal.valueOf(installments - 1L))
+        );
+
+        boolean isInstallmentPurchase = installments > 1;
+        String groupId = isInstallmentPurchase
+                ? UUID.randomUUID().toString()
+                : null;
+
+        var user = userRepository.getReferenceById(userId);
+        List<Transaction> transactions = new ArrayList<>(installments);
+
+        for (int number = 1; number <= installments; number++) {
+            Transaction tx = new Transaction();
+
+            tx.setUser(user);
+            tx.setType(request.type());
+            tx.setAmount(
+                    number == installments
+                            ? lastInstallmentAmount
+                            : installmentAmount
+            );
+
+            // Mantém a data da compra; a competência identifica cada fatura.
+            tx.setDate(request.date());
+            tx.setDescription(request.description());
+            tx.setNotes(request.notes());
+            tx.setCategory(category);
+            tx.setAccount(account);
+            tx.setCreditCard(card);
+
+            if (firstInvoiceReference != null) {
+                tx.setInvoiceReference(
+                        firstInvoiceReference.plusMonths(number - 1L)
+                );
+            }
+
+            if (isInstallmentPurchase) {
+                tx.setInstallmentGroupId(groupId);
+                tx.setInstallmentNumber(number);
+                tx.setInstallmentTotal(installments);
+            }
+
+            transactions.add(tx);
+        }
+
+        List<Transaction> savedTransactions =
+                transactionRepository.saveAll(transactions);
+
+        return TransactionResponse.from(savedTransactions.get(0));
     }
 
     @Transactional
@@ -174,12 +246,12 @@ public class TransactionService {
         if (hasAccount == hasCard) {
             throw new BusinessRuleException("Informe accountId ou creditCardId (exatamente um dos dois)");
         }
-        if (hasCard) {
-            if (request.type() != TransactionType.EXPENSE) {
-                throw new BusinessRuleException("Cartão de crédito aceita apenas despesas");
-            }
+
+        if (hasCard && request.type() != TransactionType.EXPENSE) {
+            throw new BusinessRuleException("Cartão de crédito aceita apenas despesas");
         }
-        if (request.installments() != null && request.installments() > 1) {
+
+        if (!hasCard && request.installments() != null && request.installments() > 1) {
             throw new BusinessRuleException("Parcelamento disponível apenas para compras no cartão de crédito");
         }
     }

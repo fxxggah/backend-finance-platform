@@ -35,4 +35,3 @@ build/
 ### Segredos ###
 .env
 application-prod.yml
-

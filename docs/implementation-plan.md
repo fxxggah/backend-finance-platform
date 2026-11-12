@@ -101,6 +101,12 @@ Ordem: `Account` → `Category` → `Transaction`.
 - [ ] Limite usado/disponível (`availableLimit` pode ser negativo)
 - [ ] Testes: soma das parcelas = total; 31/01 → 28/02; os 5 estados da fatura
 
+### Regressão do cadastro parcelado (12/11/2026)
+
+- [x] Atualizar `TransactionServiceTest` para `saveAll`, parcelas em 2x/4x/24x, centavos na última parcela, competências consecutivas e retorno da primeira parcela.
+- [x] Cobrir quantidade inválida, parcela de valor zero, pagamento em 1x e validações de conta/cartão.
+- [x] Alinhar datas ao dominio: avancar cada parcela a partir da data da compra, ajustar fim de mes e calcular sua competencia.
+
 ## Fase 7: Fechamento (juntos)
 
 - [ ] Completar a checklist de testes (unitários e de integração)

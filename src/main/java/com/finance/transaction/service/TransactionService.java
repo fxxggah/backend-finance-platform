@@ -91,16 +91,12 @@ public class TransactionService {
 
         Account account = null;
         CreditCard card = null;
-        LocalDate firstInvoiceReference = null;
 
         if (request.accountId() != null) {
             account = loadAccount(userId, request.accountId(), null);
         } else {
             card = loadCreditCard(userId, request.creditCardId(), null);
-            firstInvoiceReference = calculateInvoiceReference(
-                    request.date(),
-                    card.getClosingDay()
-            );
+
         }
 
         BigDecimal totalAmount = request.amount();
@@ -140,17 +136,16 @@ public class TransactionService {
                             : installmentAmount
             );
 
-            // Mantém a data da compra; a competência identifica cada fatura.
-            tx.setDate(request.date());
+            tx.setDate(request.date().plusMonths(number - 1L));
             tx.setDescription(request.description());
             tx.setNotes(request.notes());
             tx.setCategory(category);
             tx.setAccount(account);
             tx.setCreditCard(card);
 
-            if (firstInvoiceReference != null) {
+            if (card != null) {
                 tx.setInvoiceReference(
-                        firstInvoiceReference.plusMonths(number - 1L)
+                        calculateInvoiceReference(tx.getDate(), card.getClosingDay())
                 );
             }
 

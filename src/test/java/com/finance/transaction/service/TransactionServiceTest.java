@@ -21,6 +21,8 @@ import com.finance.user.repository.UserRepository;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
 import org.mockito.ArgumentMatchers;
 import org.mockito.InjectMocks;
@@ -36,11 +38,13 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.List;
+import java.util.UUID;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -152,9 +156,11 @@ class TransactionServiceTest {
     }
 
     private void stubSaveAssigningId() {
-        when(transactionRepository.save(any(Transaction.class))).thenAnswer(invocation -> {
-            Transaction saved = invocation.getArgument(0);
-            saved.setId(TX_ID);
+        when(transactionRepository.saveAll(ArgumentMatchers.<Transaction>anyList())).thenAnswer(invocation -> {
+            List<Transaction> saved = invocation.getArgument(0);
+            for (int index = 0; index < saved.size(); index++) {
+                saved.get(index).setId(TX_ID + index);
+            }
             return saved;
         });
     }
@@ -174,10 +180,21 @@ class TransactionServiceTest {
         return captor.getValue();
     }
 
-    private Transaction captureSavedTransaction() {
-        ArgumentCaptor<Transaction> captor = ArgumentCaptor.forClass(Transaction.class);
-        verify(transactionRepository).save(captor.capture());
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    private List<Transaction> captureCreatedTransactions() {
+        ArgumentCaptor<List<Transaction>> captor = ArgumentCaptor.forClass((Class) List.class);
+        verify(transactionRepository).saveAll(captor.capture());
+        verify(transactionRepository, never()).save(any(Transaction.class));
         return captor.getValue();
+    }
+
+    private Transaction captureSavedTransaction() {
+        List<Transaction> saved = captureCreatedTransactions();
+        assertThat(saved).hasSize(1);
+        assertThat(saved.getFirst().getInstallmentGroupId()).isNull();
+        assertThat(saved.getFirst().getInstallmentNumber()).isNull();
+        assertThat(saved.getFirst().getInstallmentTotal()).isNull();
+        return saved.getFirst();
     }
 
     // ---------- list ----------
@@ -455,7 +472,7 @@ class TransactionServiceTest {
                 .isInstanceOf(BusinessRuleException.class)
                 .hasMessage("Informe accountId ou creditCardId (exatamente um dos dois)");
 
-        verify(transactionRepository, never()).save(any(Transaction.class));
+        verifyNoInteractions(transactionRepository);
     }
 
     @Test
@@ -466,7 +483,7 @@ class TransactionServiceTest {
                 .isInstanceOf(BusinessRuleException.class)
                 .hasMessage("Informe accountId ou creditCardId (exatamente um dos dois)");
 
-        verify(transactionRepository, never()).save(any(Transaction.class));
+        verifyNoInteractions(transactionRepository);
     }
 
     @Test
@@ -477,7 +494,7 @@ class TransactionServiceTest {
                 .isInstanceOf(BusinessRuleException.class)
                 .hasMessage("Cartão de crédito aceita apenas despesas");
 
-        verify(transactionRepository, never()).save(any(Transaction.class));
+        verifyNoInteractions(transactionRepository);
     }
 
     @Test
@@ -488,7 +505,7 @@ class TransactionServiceTest {
                 .isInstanceOf(BusinessRuleException.class)
                 .hasMessage("Parcelamento disponível apenas para compras no cartão de crédito");
 
-        verify(transactionRepository, never()).save(any(Transaction.class));
+        verifyNoInteractions(transactionRepository);
     }
 
     @Test
@@ -499,7 +516,7 @@ class TransactionServiceTest {
                 .isInstanceOf(BusinessRuleException.class)
                 .hasMessage("O valor (amount) é obrigatório");
 
-        verify(transactionRepository, never()).save(any(Transaction.class));
+        verifyNoInteractions(transactionRepository);
     }
 
     @Test
@@ -512,7 +529,7 @@ class TransactionServiceTest {
                 .isInstanceOf(BusinessRuleException.class)
                 .hasMessage("A data não pode ser superior a 1 ano à frente");
 
-        verify(transactionRepository, never()).save(any(Transaction.class));
+        verifyNoInteractions(transactionRepository);
     }
 
     @Test
@@ -524,7 +541,7 @@ class TransactionServiceTest {
                 .isInstanceOf(ResourceNotFoundException.class)
                 .hasMessage(CATEGORY_NOT_FOUND);
 
-        verify(transactionRepository, never()).save(any(Transaction.class));
+        verifyNoInteractions(transactionRepository);
         verifyNoInteractions(accountRepository, creditCardRepository);
     }
 
@@ -538,7 +555,7 @@ class TransactionServiceTest {
                 .isInstanceOf(BusinessRuleException.class)
                 .hasMessage("Não é possível usar uma categoria excluída");
 
-        verify(transactionRepository, never()).save(any(Transaction.class));
+        verifyNoInteractions(transactionRepository);
     }
 
     @Test
@@ -551,7 +568,7 @@ class TransactionServiceTest {
                 .isInstanceOf(BusinessRuleException.class)
                 .hasMessage("O tipo da categoria deve ser igual ao tipo da transação");
 
-        verify(transactionRepository, never()).save(any(Transaction.class));
+        verifyNoInteractions(transactionRepository);
     }
 
     @Test
@@ -565,7 +582,7 @@ class TransactionServiceTest {
                 .isInstanceOf(ResourceNotFoundException.class)
                 .hasMessage(ACCOUNT_NOT_FOUND);
 
-        verify(transactionRepository, never()).save(any(Transaction.class));
+        verifyNoInteractions(transactionRepository);
     }
 
     @Test
@@ -579,7 +596,7 @@ class TransactionServiceTest {
                 .isInstanceOf(BusinessRuleException.class)
                 .hasMessage("Não é possível usar uma conta arquivada");
 
-        verify(transactionRepository, never()).save(any(Transaction.class));
+        verifyNoInteractions(transactionRepository);
     }
 
     @Test
@@ -593,7 +610,7 @@ class TransactionServiceTest {
                 .isInstanceOf(ResourceNotFoundException.class)
                 .hasMessage(CARD_NOT_FOUND);
 
-        verify(transactionRepository, never()).save(any(Transaction.class));
+        verifyNoInteractions(transactionRepository);
     }
 
     @Test
@@ -607,7 +624,7 @@ class TransactionServiceTest {
                 .isInstanceOf(BusinessRuleException.class)
                 .hasMessage("Não é possível usar um cartão arquivado");
 
-        verify(transactionRepository, never()).save(any(Transaction.class));
+        verifyNoInteractions(transactionRepository);
     }
 
     // ---------- update ----------
@@ -896,4 +913,123 @@ class TransactionServiceTest {
 
         verify(transactionRepository, never()).saveAll(any());
     }
+    @ParameterizedTest
+    @ValueSource(ints = {2, 4, 24})
+    @DisplayName("create: deve aceitar parcelamento no cartão e preservar valor e vínculos")
+    void create_shouldGenerateCardInstallments(int count) {
+        stubCardCreation(card(CARD_ID, 15, false));
+
+        TransactionResponse response = transactionService.create(USER_ID,
+                request(EXPENSE, "120.00", DATE, null, CARD_ID, count));
+
+        List<Transaction> saved = captureCreatedTransactions();
+        assertThat(saved).hasSize(count);
+        String groupId = saved.getFirst().getInstallmentGroupId();
+        assertThat(groupId).isNotBlank();
+        assertThat(UUID.fromString(groupId).toString()).isEqualTo(groupId);
+        BigDecimal sum = BigDecimal.ZERO;
+        for (int i = 0; i < count; i++) {
+            Transaction tx = saved.get(i);
+            assertThat(tx.getInstallmentGroupId()).isEqualTo(groupId);
+            assertThat(tx.getInstallmentNumber()).isEqualTo(i + 1);
+            assertThat(tx.getInstallmentTotal()).isEqualTo(count);
+            assertThat(tx.getAmount()).isEqualByComparingTo(new BigDecimal("120.00").divide(BigDecimal.valueOf(count)));
+            assertThat(tx.getInvoiceReference()).isEqualTo(LocalDate.of(2026, 3, 1).plusMonths(i));
+            assertThat(tx.getDate()).isEqualTo(DATE.plusMonths(i));
+            assertThat(tx.getUser().getId()).isEqualTo(USER_ID);
+            assertThat(tx.getCategory().getId()).isEqualTo(CATEGORY_ID);
+            assertThat(tx.getCreditCard().getId()).isEqualTo(CARD_ID);
+            assertThat(tx.getAccount()).isNull();
+            assertThat(tx.getType()).isEqualTo(EXPENSE);
+            assertThat(tx.getDescription()).isEqualTo("Descrição");
+            assertThat(tx.getNotes()).isEqualTo("Obs");
+            sum = sum.add(tx.getAmount());
+        }
+        assertThat(sum).isEqualByComparingTo("120.00");
+        assertThat(response.id()).isEqualTo(TX_ID);
+        assertThat(response.amount()).isEqualByComparingTo(saved.getFirst().getAmount());
+        assertThat(response.installment().groupId()).isEqualTo(groupId);
+        assertThat(response.installment().number()).isEqualTo(1);
+        assertThat(response.installment().total()).isEqualTo(count);
+        verifyNoInteractions(accountRepository);
+    }
+
+    @Test
+    @DisplayName("create: deve colocar centavos restantes na última parcela e avançar faturas após dezembro")
+    void create_shouldAssignRemainderToLastInstallmentAndRollYear() {
+        stubCardCreation(card(CARD_ID, 15, false));
+        transactionService.create(USER_ID,
+                request(EXPENSE, "100.00", LocalDate.of(2025, 11, 16), null, CARD_ID, 3));
+        List<Transaction> saved = captureCreatedTransactions();
+        assertThat(saved).extracting(Transaction::getAmount)
+                .containsExactly(new BigDecimal("33.33"), new BigDecimal("33.33"), new BigDecimal("33.34"));
+        assertThat(saved).extracting(Transaction::getInvoiceReference)
+                .containsExactly(LocalDate.of(2025, 12, 1), LocalDate.of(2026, 1, 1), LocalDate.of(2026, 2, 1));
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {true, false})
+    @DisplayName("create: 1x explícito deve criar lançamento simples em conta ou cartão")
+    void create_shouldKeepExplicitSinglePaymentWithoutInstallmentMetadata(boolean onCard) {
+        if (onCard) {
+            stubCardCreation(card(CARD_ID, 15, false));
+        } else {
+            when(categoryRepository.findByIdAndUserId(CATEGORY_ID, USER_ID))
+                    .thenReturn(Optional.of(category(CATEGORY_ID, EXPENSE, false)));
+            when(accountRepository.findByIdAndUserId(ACCOUNT_ID, USER_ID)).thenReturn(Optional.of(account(ACCOUNT_ID, false)));
+            when(userRepository.getReferenceById(USER_ID)).thenReturn(user());
+            stubSaveAssigningId();
+        }
+        TransactionResponse response = transactionService.create(USER_ID,
+                request(EXPENSE, "10.00", DATE, onCard ? null : ACCOUNT_ID, onCard ? CARD_ID : null, 1));
+        assertThat(captureSavedTransaction().getAmount()).isEqualByComparingTo("10.00");
+        assertThat(response.installment()).isNull();
+    }
+
+    @ParameterizedTest
+    @ValueSource(ints = {0, -1, 25})
+    @DisplayName("create: deve rejeitar número de parcelas fora de 1 a 24 sem persistir")
+    void create_shouldRejectInstallmentCountOutsideRange(int count) {
+        assertThatThrownBy(() -> transactionService.create(USER_ID,
+                request(EXPENSE, "100.00", DATE, null, CARD_ID, count)))
+                .isInstanceOf(BusinessRuleException.class)
+                .hasMessage("A quantidade de parcelas deve estar entre 1 e 24");
+        verifyNoInteractions(transactionRepository, categoryRepository, accountRepository, creditCardRepository, userRepository);
+    }
+
+    @Test
+    @DisplayName("create: deve rejeitar compra que geraria parcela de valor zero")
+    void create_shouldRejectZeroValueInstallments() {
+        when(categoryRepository.findByIdAndUserId(CATEGORY_ID, USER_ID))
+                .thenReturn(Optional.of(category(CATEGORY_ID, EXPENSE, false)));
+        when(creditCardRepository.findByIdAndUserId(CARD_ID, USER_ID)).thenReturn(Optional.of(card(CARD_ID, 15, false)));
+        assertThatThrownBy(() -> transactionService.create(USER_ID,
+                request(EXPENSE, "0.02", DATE, null, CARD_ID, 3)))
+                .isInstanceOf(BusinessRuleException.class)
+                .hasMessage("O valor da compra é insuficiente para a quantidade de parcelas");
+        verifyNoInteractions(transactionRepository, userRepository);
+    }
+
+    @Test
+    @DisplayName("create: deve ajustar fim de mes e calcular a fatura de cada parcela")
+    void create_shouldAdjustMonthEndDatesAndInvoiceReferences() {
+        stubCardCreation(card(CARD_ID, 31, false));
+        transactionService.create(USER_ID,
+                request(EXPENSE, "30.00", LocalDate.of(2026, 1, 31), null, CARD_ID, 3));
+        List<Transaction> saved = captureCreatedTransactions();
+        assertThat(saved).extracting(Transaction::getDate).containsExactly(
+                LocalDate.of(2026, 1, 31), LocalDate.of(2026, 2, 28), LocalDate.of(2026, 3, 31));
+        assertThat(saved).extracting(Transaction::getInvoiceReference).containsExactly(
+                LocalDate.of(2026, 1, 1), LocalDate.of(2026, 2, 1), LocalDate.of(2026, 3, 1));
+    }
+
+    @Test
+    @DisplayName("create: deve aceitar parcelas de exatamente um centavo")
+    void create_shouldAcceptOneCentInstallments() {
+        stubCardCreation(card(CARD_ID, 15, false));
+        transactionService.create(USER_ID, request(EXPENSE, "0.03", DATE, null, CARD_ID, 3));
+        assertThat(captureCreatedTransactions()).hasSize(3).allSatisfy(tx ->
+                assertThat(tx.getAmount()).isEqualByComparingTo("0.01"));
+    }
+
 }

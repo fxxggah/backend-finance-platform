@@ -8,7 +8,7 @@ Leia **no início de cada tarefa**: fase atual, dono e status. Uma feature por v
 
 - **Responsável:** Gabriel, autor e responsável pelo projeto inteiro. Frontend em outro repositório; o trabalho aqui é restrito ao backend.
 - **V1:** funcional, conforme confirmação de Gabriel. Os checklists antigos estão desatualizados e foram preservados abaixo como histórico, sem declarar verificações individuais como realizadas nesta tarefa.
-- **Fase atual:** V2 / fase 1 — prova técnica gratuita, em andamento; extração por WAV sintético e pelos dois arquivos WebM/MP4 com fala de Gabriel validada. Fase 0 concluída em 13/11/2026.
+- **Fase atual:** V2 / fase 1 — prova técnica gratuita, em andamento. A extração `voice-poc-v4-events` delega a classificação ao Java pela contagem de eventos; a política aprovada `account-installments-v1` normaliza parcelas ausentes em conta para 1 e mantém pendência em cartão. As 80 medições anteriores ficam preservadas sob a política antiga. Restam validação de duração/integridade dos formatos e relatórios de captura antes de concluir a fase. Fase 0 concluída em 13/11/2026.
 - **Base técnica confirmada:** Java 25, Spring Boot 4.1.1, pacote `com.finance`.
 - A distribuição antiga entre Biel, Breno e João e as decisões de divisão de trabalho abaixo são históricas; o responsável atual por todas as fases é Gabriel.
 
@@ -22,6 +22,7 @@ Leia **no início de cada tarefa**: fase atual, dono e status. Uma feature por v
 - **Orçamento inicial de IA: R$ 0.** Começar com Gemini Flash-Lite no nível gratuito, sem habilitar cobrança ou fallback pago. Modelo exato e capacidade do projeto serão verificados na fase 1.
 - Manter Java 25 e Spring Boot 4.1.1; nenhuma atualização de stack nesta entrega.
 - Pagamento depois da validação da experiência; acesso PRO manual para testes antes da integração de cobrança.
+- Parcelas ausentes em uma única transação: com conta válida, normalizar para 1 no backend; com cartão ou origem não resolvida, manter pendente. Decisão explícita de Gabriel em 13/11/2026; validar valores informados antes de aplicar defaults.
 - A fase 0 foi exclusivamente documental. A fase 1 adiciona somente a prova manual e seus testes; endpoints públicos, persistência e assinatura ficam nas fases posteriores.
 
 ### Direção técnica proposta para validar na fase 1
@@ -78,7 +79,11 @@ Preparação iniciada em 13/11/2026:
 - [x] Preparar captura no navegador com download/compartilhamento dos bytes originais e relatório, disponível em localhost e HTTPS temporário para o iPhone 13 de Gabriel.
 - [x] Validar gravação/links/liberação do microfone em Chrome isolado com dispositivo fictício, nos formatos WebM/Opus e MP4/AAC; servidor estático com rotas fixas e sem upload.
 - [x] Validar extração dos dois arquivos originais fornecidos por Gabriel: WebM/Opus e MP4/AAC, com a frase fictícia da página. Ambos corresponderam integralmente ao esperado. Relatórios de captura/navegador ainda não recebidos.
-- [ ] Completar amostra de avaliação, métricas e validações técnicas pendentes antes de concluir a fase.
+- [x] Montar corpus sintético de 50 casos com resultados esperados, medir campos/latência/uso e registrar comparação de prompts v1/v2 sem descartar erros HTTP.
+- [x] Implementar classificação local por contagem de eventos e verificar os 50 casos originais, os 20 adicionais e 10 frases inéditas antes da primeira chamada v4. Todos os 16 múltiplos com resposta foram recusados; 2 dos 18 múltiplos planejados ficaram sem resposta por HTTP 503.
+- [x] Verificar HTTP 429, timeout e limite de falhas em servidor local, sem chave real ou chamadas ao Google.
+- [x] Alinhar ausência de parcelas com Gabriel e implementar a normalização no backend da PoC, com testes locais e política versionada, sem reescrever os resultados históricos.
+- [ ] Completar validação técnica de duração/integridade dos formatos e relatórios de captura antes de concluir a fase.
 
 Não houve leitura do `.env`. O controle do faturamento continua manual no projeto do Google; o nome do modelo e a chave não garantem custo zero por si só.
 
@@ -139,7 +144,90 @@ Passos de Gabriel:
 
 O microfone exige contexto seguro; `http://IP-do-PC` no iPhone não substitui HTTPS. Referências: [getUserMedia](https://developer.mozilla.org/en-US/docs/Web/API/MediaDevices/getUserMedia) e [isTypeSupported](https://developer.mozilla.org/en-US/docs/Web/API/MediaRecorder/isTypeSupported_static).
 
-### Critérios restantes da prova
+### Avaliação e pendências da prova
+
+### Política de parcelas aprovada — implementação local
+
+- Gabriel escolheu explicitamente: **conta usa 1; cartão sem informação fica pendente**. Aplicada na PoC em `parseExtraction`, depois da validação de um único evento. Origem não resolvida também permanece pendente. Valores explícitos acima de 1 em conta continuam inválidos; múltiplos eventos não recebem defaults.
+- Prompt e schema do modelo continuam `voice-poc-v4-events`; a política tem versão independente **`account-installments-v1`**, exibida pelo programa e registrada em novos resumos. Não foi alterada a criação manual, a API REST ou o schema de banco, nem adicionada dependência.
+- O corpus original e os relatórios já produzidos foram preservados. Em avaliações futuras, o comparador deriva uma cópia do esperado sob a política aprovada; os novos resumos informam `normalization` e `effectiveOracleChanges`. No corpus atual, só `c35` muda de `null` para 1 no esperado efetivo. Isso não reclassifica retroativamente a rodada anterior nem equivale a uma nova medição de precisão.
+- Testes locais cobrem conta com parcelas null, cartão e origem não resolvida com pendência, preservação de parcelas explícitas em cartão, rejeição de parcelas inválidas em conta e XOR antes de normalizar, política versionada e integridade do oráculo histórico. A ausência na fala continua sendo identificada pelo extrator; a normalização trata o resultado null sem garantir que o modelo nunca faça inferências incorretas.
+- Não houve nova chamada ao Google nem reprocessamento de gravações humanas nesta tarefa. `mvnw.cmd -U clean compile` passou com JDK 25; **902 testes passaram, zero falhas/erros/ignorados**, em saída isolada para evitar interferência da IDE, incluindo 51 testes offline da PoC. Após o ajuste final de reconhecimento de conta no comparador, os 21 testes focalizados do avaliador também passaram. `git diff --check` sem erros; POM temporário removido.
+- Definição de pronto desta tarefa: regra aprovada registrada em `domain-rules.md`, implementação/avaliação versionadas, cobertura das situações de conta/cartão/origem indefinida e invalidações, compilação e testes aprovados, arquitetura/plano atualizados. Migration, Swagger e novos testes de isolamento com banco não se aplicam, pois não houve mudança de entidade, endpoint ou acesso a dados do usuário. A fase 1 permanece em andamento pelas pendências de áudio.
+
+### Correção de múltiplas transações — estrutura de eventos
+
+- `voice-poc-v3` tentou priorizar classificação no prompt e foi avaliado primeiro em `voice-holdout-v1`, 20 frases congeladas antes das chamadas. Resultado: 12 correspondências exatas, 3 respostas rejeitadas pelo validador, 2 HTTP 503 e 3 erros de requisição em aproximadamente 30 s; nenhuma divergência entre as 12 respostas validadas. Os rejeitados não produziram rascunho, mas também não cumpriram o resultado esperado. Não foi executada uma regressão de 50 com v3. Artefatos: `build/ai-poc-evaluation/results-2026-11-13T19-24-31-952180300Z/`.
+- A versão final experimental **`voice-poc-v4-events`** faz o modelo enumerar até 3 eventos em um array. **O Java decide a classificação**, preservando o formato normalizado dos oráculos: 0 = UNCLEAR; 1 = SINGLE, com validações existentes; 2 ou 3 = MULTIPLE, com todos os campos financeiros descartados. Não soma valores nem seleciona uma transação para salvar. Ainda depende da enumeração correta pelo modelo; não é garantia de reconhecer toda fala múltipla possível.
+- A mudança é restrita ao JSON interno da PoC e ao parser `parseExtraction`. Contrato REST, entidade, schema de banco, DTOs públicos e criação manual permanecem iguais. Modelo, SDK, cota gratuita e proibição de tools permanecem. Os arquivos/oráculos do corpus original não foram alterados.
+- Depois da avaliação v3, os 20 casos `holdout` passaram a ser regressão de desenvolvimento. Um último conjunto de **10 frases inéditas** (`evaluation-unseen.json`, `voice-unseen-v1`) foi fixado e gerado offline antes da primeira chamada v4: 5 múltiplas, 3 compras únicas de contraste (itens, parcelas e correção verbal), 1 parcial e 1 injeção com dois eventos. Não foi alterado após olhar os resultados.
+- **Primeira avaliação inédita v4:** 10 chamadas, **8 respostas validadas/exatas e 2 HTTP 503** (`u05`, `u07`), zero divergências ou respostas inválidas nas respostas recebidas. São 8/10 = 80% por tentativa e 8/8 = 100% entre respostas recebidas; não omitir as indisponibilidades. p50 3.019 ms, p95 6.822 ms; 7.535 tokens de entrada + 1.184 de saída = 8.719 informados; uso ausente nas 2 falhas. Artefatos: `build/ai-poc-evaluation/results-2026-11-13T19-32-08-919485700Z/`.
+- Testes locais com `HttpServer` em loopback confirmaram **uma tentativa** para HTTP 429 e timeout, sem usar chave real ou Google; cota/configuração param imediatamente e 503 só interrompe o lote após 5 falhas consecutivas. Envelopes malformados, status vindo do modelo, mais de 3 eventos e campos incorretos são rejeitados. Múltiplos eventos não retêm valor/conta/tipo no resultado normalizado.
+- `mvnw.cmd -U clean compile`: passou com JDK 25. Regressão completa final em saída isolada: **897 testes, zero falhas, zero erros e zero ignorados**, incluindo **46 testes offline da PoC**. A execução normal de testes não chama Google. POM temporário removido após a suíte.
+- **Regressão v4 dos 50 casos originais concluída:** 45 exatos, 1 divergência (`c35`, parcelas preenchidas sem informação explícita), 3 HTTP 503 e 1 erro de requisição em 30.017 ms. Os casos `c44`/`c45` que falharam no v2 e o caso `c46` retornaram corretamente `MULTIPLE`. Artefatos: `build/ai-poc-evaluation/results-2026-11-13T19-34-03-872204Z/`.
+- **Regressão v4 dos 20 casos adicionais concluída:** 19 exatos, 1 HTTP 503 (`h03`), zero divergências ou respostas inválidas recebidas. O conjunto já havia sido inspecionado na rodada v3 e não é apresentado como evidência inédita de v4. p50 2.283 ms, p95 8.088 ms; 17.204 tokens de entrada + 2.374 de saída = 19.578 informados; uso ausente na falha. Artefatos: `build/ai-poc-evaluation/results-2026-11-13T19-40-05-476470700Z/`.
+
+| Conjunto v4 | Tentativas | Exatos | Divergências | Falhas operacionais |
+|---|---|---|---|---|
+| Original | 50 | 45 | 1 (parcelas) | 4 |
+| Adicional, já inspecionado | 20 | 19 | 0 | 1 |
+| Inédito na primeira chamada v4 | 10 | 8 | 0 | 2 |
+| Total | 80 | 72 | 1 | 7 |
+
+- **Múltiplos eventos:** 18 casos esperados (inclui injeções), 16 resultados classificados corretamente e 2 HTTP 503. Não houve múltiplo retornado como SINGLE entre os recebidos. Não afirmar aprovação dos 2 casos sem resposta nem garantia geral de enumeração do modelo.
+- **Métricas agregadas v4:** 73 respostas aceitas pelo pipeline, 72 exatas (72/80 = 90% por tentativa; 72/73 = 98,63% entre respostas aceitas). São resultados normalizados pelo Java, não uma medida isolada do LLM. p50 2.911 ms, p95 9.721 ms, máximo 30.017 ms; 64.748 tokens de entrada + 7.756 de saída = 72.504 informados. As 7 falhas foram 6 HTTP 503 e 1 erro de requisição no limite de timeout, sem uso informado. Não assumir consumo/custo zero para falhas.
+- **Pendência c35:** em um gasto na conta Carteira sem mencionar parcelas, o modelo retornou `1`; o oráculo vigente exige `null`. O valor e os demais campos ficaram corretos. A criação manual já considera 1 parcela por padrão e conta não aceita parcelamento, mas a PoC ainda declara campos não informados como pendentes. Não mudar silenciosamente o oráculo nem apresentar esse resultado como exato: alinhar a política do rascunho em tarefa própria, preservando o histórico das medições.
+- **Decisão desta tarefa:** classificação de múltiplos corrigida e verificada na prova, permanecendo experimental e sem endpoint público. Manter a fase 1 aberta pelas pendências listadas acima. A revisão humana continua obrigatória e não se pode exigir precisão/ disponibilidade de produção a partir de uma única voz sintética ou dessas amostras pequenas.
+
+Comandos adicionais do gerador/avaliador (mesma preparação de classpath já documentada):
+
+```powershell
+.\tools\ai-poc\generate-evaluation-audio.ps1 -Corpus holdout -OutputDirectory 'build/ai-poc-evaluation/audio-holdout-novo'
+.\tools\ai-poc\generate-evaluation-audio.ps1 -Corpus unseen -OutputDirectory 'build/ai-poc-evaluation/audio-unseen-novo'
+& "$env:JAVA_HOME\bin\java.exe" -cp $probeClasspath com.finance.ai.poc.GeminiVoiceEvaluation --free-project-confirmed --synthetic-fixtures-only 'build/ai-poc-evaluation/audio-holdout-novo' --holdout
+& "$env:JAVA_HOME\bin\java.exe" -cp $probeClasspath com.finance.ai.poc.GeminiVoiceEvaluation --free-project-confirmed --synthetic-fixtures-only 'build/ai-poc-evaluation/audio-unseen-novo' --unseen
+```
+
+### Avaliação sintética de 50 casos — duas rodadas concluídas
+
+- Corpus `voice-corpus-v1` em `src/test/resources/ai-poc/evaluation-cases.json`, com data de contexto fixa **13/11/2026**: 30 casos claros, 10 incompletos/ambíguos, 3 sem transação (inclui silêncio), 3 com múltiplas transações e 4 com instruções maliciosas. Resultados esperados definidos antes da rodada; prompt permanece `voice-poc-v1`.
+- WAVs gerados **offline** com Microsoft Maria Desktop em PCM mono/16 kHz/16 bits, um caso de silêncio sintético, em `build/ai-poc-evaluation/audio-v1`. Nenhuma gravação humana ou dado financeiro real entra nessa rodada. Manifesto vincula hashes do corpus e dos 50 arquivos; todos são verificados antes da primeira chamada.
+- Avaliador manual `GeminiVoiceEvaluation`, até 50 chamadas ao `gemini-3.1-flash-lite`, uma tentativa por caso e intervalo mínimo de 6 s entre inícios. Para em erro de configuração/acesso/cota ou 5 falhas consecutivas. Sem tools, transcodificação, alteração de modelo ou retry automático.
+- Artefatos locais em `build/ai-poc-evaluation/results-<UTC>/results.jsonl` e `summary.json`: apenas IDs, grupos, divergências por campo, tipo de resultado, HTTP, latência e uso informado. Sem resposta bruta ou texto/áudio no log. Dados de thinking/uso ausentes não são tratados como zero.
+- Comparação exata dos 8 campos. Erros HTTP/JSON/validação não ganham crédito por campo. O resumo informa contagens sobre os 50 planejados, respostas validadas, execuções pendentes, grupos e acerto conjunto de valor/tipo/parcelas nos 30 casos claros. Percentis de latência usam nearest rank sobre as tentativas, incluindo falhas HTTP, sem espera do limitador.
+- Esses testes são um baseline de desenvolvimento com uma única voz sintética, sem ruído/sotaques reais nem conjunto independente reservado. Não demonstram precisão de produção, segurança geral contra injeção ou ausência de alucinações. Os casos claros de Chrome/Safari já testados são evidência separada.
+- **Baseline `voice-poc-v1` concluído:** 50 tentativas, 47 respostas validadas, 42 correspondências exatas, 5 divergências e 3 HTTP 503. Exatidão por tentativa: 42/50 = 84%; entre respostas validadas: 42/47 = 89,36%. Casos claros: 27/27 respostas corretas, 3 indisponibilidades (27/30 tentativas). Grupos sem transação, múltiplos e injeção: respectivamente 3/3, 3/3 e 4/4. Incompletos/ambíguos: 5/10 correspondências exatas.
+- Divergências do baseline: `c32` preencheu data ausente; `c34` escolheu conta ausente; `c35` preencheu parcelas ausentes; `c38` escolheu cartão para uma instituição não cadastrada; `c39` não preservou campos conhecidos quando o valor era ambíguo. Não houve corpo de resposta logado; a análise usa o oráculo e os campos divergentes. Baseline preservado em `build/ai-poc-evaluation/results-2026-11-13T18-55-21-580850500Z/`.
+- Baseline: p50 **3.441 ms**, p95 **10.442 ms** (tentativas incluindo erros, sem espera do limitador); uso informado **25.115 tokens de entrada + 3.874 de saída = 28.989**. Uso das 3 falhas HTTP não informado, não assumir custo/uso zero.
+- **Ajuste experimental `voice-poc-v2`:** explicita ausência como null, proíbe defaults por catálogo de opção única e substituição de instituições desconhecidas, e conserva fatos conhecidos quando apenas um campo é ambíguo. Schema, valores monetários, SDK, modelo, catálogo, corpus, WAVs e data permanecem iguais. A segunda rodada usa os mesmos 50 casos para regressão do desenvolvimento, sem conjunto independente; não usar melhoria nesse corpus como alegação de precisão de produção.
+- **Rodada `voice-poc-v2` concluída:** 50 tentativas, 49 respostas validadas, 47 correspondências exatas, 2 divergências e 1 HTTP 503 (`c48`). Exatidão por tentativa: 47/50 = 94%; entre respostas validadas: 47/49 = 95,92%. Corpus idêntico, sem regravação ou alterações nos resultados esperados. Artefatos em `build/ai-poc-evaluation/results-2026-11-13T19-03-00-259560Z/`.
+- Os cinco casos problemáticos do baseline (`c32`, `c34`, `c35`, `c38`, `c39`) corresponderam ao esperado na segunda rodada. Contudo, `c44` (duas despesas) e `c45` (receita e despesa) não foram classificados como `MULTIPLE`; apresentaram campos preenchidos de uma única transação, violando a restrição de uma transação por áudio. É uma regressão observada na comparação, não uma demonstração causal isolada do efeito do prompt, pois só houve uma tentativa por caso em cada versão.
+- **Decisão:** manter a fase 1 em andamento. O prompt v2 permanece apenas na prova manual, sem integração ao produto. Não aprovar a fase por uma taxa agregada acima de 95% entre respostas válidas: a falha em múltiplos lançamentos é material. Próxima tarefa é rever a classificação de eventos antes da extração, com regressão do corpus atual e casos inéditos. O problema não foi ocultado por nova rodada até obter aprovação.
+- Rodada v2: p50 **1.804 ms**, p95 **10.484 ms**, máximo observado **26.459 ms**; uso informado **35.940 tokens de entrada + 3.781 de saída = 39.721**. A chamada HTTP 503 não informou uso; não assumir zero. Diferenças de latência entre rodadas são observações deste ambiente/provedor, não um efeito de desempenho comprovado do prompt.
+
+| Grupo | Casos | v1 exatos | v2 exatos | Observação |
+|---|---|---|---|---|
+| Claros | 30 | 27 | 30 | v1 teve 3 HTTP 503; todos os claros com resposta válida acertaram valor/tipo/parcelas |
+| Incompletos/ambíguos | 10 | 5 | 10 | Cinco divergências do baseline resolvidas nesta amostra |
+| Sem transação/silêncio | 3 | 3 | 3 | Somente esses casos sintéticos foram avaliados |
+| Múltiplas transações | 3 | 3 | 1 | Dois casos incorretos na rodada v2; impede aprovação |
+| Instruções maliciosas | 4 | 4 | 3 | v2 teve 1 HTTP 503; não comprova segurança geral |
+
+- **Validação de código:** `mvnw.cmd -U clean compile` passou com JDK 25; **889 testes passaram, sem falhas/erros/ignorados**, incluindo 38 testes offline da PoC (8 novos de corpus, comparação, hashes e métricas). Regressão executada em saída isolada com POM temporário, removido após a execução, como nas tarefas anteriores. Testes comuns não chamam Google. `git diff --check` passou. Nenhum schema, endpoint REST, entidade ou regra de transação persistida foi alterado.
+- O código de saída 0 do avaliador significa que a execução terminou; não significa aprovação de precisão. Examinar `summary.json`, pendências e falhas antes de decidir o próximo passo. Os relatórios não contêm o conteúdo das respostas.
+- O gerador foi corrigido durante a preparação para usar `Int16` no WAV de silêncio; a pasta parcial inicial foi preservada e uma nova saída completa foi gerada. Nenhum desses arquivos entrou no Git.
+
+Reproduzir (PowerShell; chamadas externas só no último comando e após conferir projeto gratuito):
+
+```powershell
+# Geração offline; escolher uma pasta nova em cada geração (o script não sobrescreve saídas).
+.\tools\ai-poc\generate-evaluation-audio.ps1 -OutputDirectory 'build/ai-poc-evaluation/audio-novo'
+$env:JAVA_HOME = 'C:\Program Files\Java\jdk-25.0.5.0.2'
+.\mvnw.cmd test-compile dependency:build-classpath '-Dmdep.outputFile=build/ai-poc-tools/classpath.txt' '-DincludeScope=test'
+if ($LASTEXITCODE -ne 0) { throw 'Falha ao preparar avaliação.' }
+$probeClasspath = 'target\test-classes;target\classes;' + (Get-Content -Raw -LiteralPath 'build\ai-poc-tools\classpath.txt').Trim()
+& "$env:JAVA_HOME\bin\java.exe" -cp $probeClasspath com.finance.ai.poc.GeminiVoiceEvaluation --free-project-confirmed --synthetic-fixtures-only 'build/ai-poc-evaluation/audio-novo'
+```
 
 Recebimento das gravações de Gabriel (13/11/2026):
 

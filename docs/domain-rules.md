@@ -68,6 +68,14 @@ saldo = initialBalance
 - Edição e exclusão só do próprio usuário. Exclusão é soft delete e sai de todos os cálculos.
 - Listagem **paginada** (máx. 100), ordenada por data decrescente. Filtros: período, tipo, categoria, conta, cartão e texto.
 
+### V2 — normalização do rascunho de voz (decisão de Gabriel, 13/11/2026)
+
+- Em uma única transação com **conta válida identificada** e `installments` ausente (`null`), o backend define **1**; conta não permite parcelamento. A regra é determinística no backend, não uma inferência delegada ao modelo.
+- Em transação com **cartão**, parcelas não informadas continuam `null` e pendentes de revisão. Sem conta nem cartão resolvido, também não presumir 1.
+- Validar referências, XOR e valores explícitos antes da normalização: parcelas acima de 1 em conta continuam inválidas, sem trocar o valor informado por 1; manter as demais validações existentes.
+- Múltiplos eventos e áudio sem transação não recebem defaults. A normalização não altera valor, data, tipo ou categoria nem grava transação.
+- Esta política vale inicialmente para a PoC e deverá compor o futuro contrato de rascunho. A criação manual existente mantém seu comportamento.
+
 ### Parcelamento (só cartão)
 
 - Compra de R$ 600 em 3x vira **3 transações** com o mesmo `installmentGroupId` (UUID).

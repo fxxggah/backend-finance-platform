@@ -1,14 +1,14 @@
 # finance-platform · Contexto e Regras do Agente
 
-Backend de um sistema web de **gerenciamento financeiro pessoal**. O frontend (Next.js + TypeScript + Tailwind, gerado pelo v0) fica em outro repositório e é responsabilidade do João. Este repositório é o **backend REST**, feito por Biel e Breno.
+Backend de um sistema web de **gerenciamento financeiro pessoal**. O frontend (Next.js + TypeScript + Tailwind, gerado pelo v0) fica em outro repositório. **Gabriel é o responsável pelo projeto inteiro**, incluindo a V2. Este repositório contém apenas o **backend REST**.
 
 ## Idioma e tom
 
-Responda ao Biel e ao Breno em **português do Brasil, de forma direta e informal**. Dê recomendações concretas com conclusão clara, sem "depende" solto. Quando houver várias opções, analise, **escolha uma** e justifique em poucas linhas.
+Responda ao Gabriel em **português do Brasil, de forma direta e informal**. Dê recomendações concretas com conclusão clara, sem "depende" solto. Quando houver várias opções, analise, **escolha uma** e justifique em poucas linhas.
 
 ## Stack
 
-- Java 25 · Spring Boot 4.1.x · Maven (usar o wrapper `./mvnw`; no Windows, `mvnw.cmd`)
+- Java 25 · Spring Boot 4.1.1 · Maven (usar o wrapper `./mvnw`; no Windows, `mvnw.cmd`)
 - Spring Web MVC · Spring Data JPA (Hibernate) · Bean Validation
 - MySQL 8 · Flyway (migrations)
 - Spring Security como **OAuth2 Resource Server** (JWT próprio) + login com Google via ID Token
@@ -95,10 +95,10 @@ Confira a **definição de pronto** abaixo e marque a tarefa no `docs/implementa
 
 ## Limites
 
-- Cuide **só do backend**. Frontend é do João; alterações de contrato de API precisam ser avisadas e registradas em `docs/api-spec.md`.
+- Cuide **só do backend neste repositório**. Alterações de contrato de API precisam ser avisadas ao Gabriel para integração com o frontend e registradas em `docs/api-spec.md`.
 - Não adicione dependências no `pom.xml` sem avisar o motivo e a versão escolhida.
 - Não leia, imprima nem grave segredos (`.env`, chaves, senhas, `application-prod.*` com credenciais).
-- Nada de comandos destrutivos (`rm -rf`, `git reset --hard`, `git push --force`, `DROP`) sem confirmação explícita do Biel ou do Breno.
+- Nada de comandos destrutivos (`rm -rf`, `git reset --hard`, `git push --force`, `DROP`) sem confirmação explícita do Gabriel.
 - Não implemente nada da lista **Fora do escopo do v1** abaixo.
 
 ## Fora do escopo do v1

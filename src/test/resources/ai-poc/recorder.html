@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="pt-BR">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>FIN · Teste de gravação</title>
+<style>
+  :root { color-scheme: dark; font: 17px/1.5 system-ui,sans-serif; background:#101817; color:#eef7f3 }
+  body { max-width:640px; margin:40px auto; padding:0 22px }
+  h1 { font-size:1.8rem; line-height:1.2 } blockquote { margin:24px 0; padding:20px; border-left:4px solid #70ddb0; background:#1b2925 }
+  button,select,a { font:inherit } button,select { padding:12px; border-radius:8px; border:1px solid #638877; background:#223e32; color:inherit }
+  button { cursor:pointer } button:disabled { opacity:.4; cursor:default } a { color:#8de7bb }
+  .actions { display:flex; flex-wrap:wrap; gap:12px; margin:20px 0 } #status { min-height:3em } audio { width:100%; margin:15px 0 }
+  pre { white-space:pre-wrap; overflow-wrap:anywhere; background:#18241f; padding:15px; font-size:.85rem }
+</style>
+<main>
+  <p>FIN · Fase 1</p>
+  <h1>Teste de gravação de voz</h1>
+  <p>Leia esta frase fictícia. O áudio fica no seu navegador até você salvar ou compartilhar. Esta página não envia gravações nem acessa a IA.</p>
+  <blockquote>Hoje gastei quarenta e cinco reais no mercado, na conta Carteira, categoria Alimentação, à vista.</blockquote>
+  <label for="format">Formato da gravação</label><br>
+  <select id="format">
+    <option value="">Padrão do navegador</option>
+    <option value="audio/webm;codecs=opus">WebM / Opus</option>
+    <option value="audio/mp4;codecs=mp4a.40.2">MP4 / AAC</option>
+    <option value="audio/mp4">MP4 (codec do navegador)</option>
+  </select>
+  <div class="actions">
+    <button id="start" disabled>Gravar</button>
+    <button id="stop" disabled>Parar</button>
+  </div>
+  <p id="status" role="status" aria-live="polite">Verificando suporte…</p>
+  <audio id="playback" controls hidden></audio>
+  <div id="result" hidden>
+    <p><a id="download">Salvar áudio original</a></p>
+    <button id="share" hidden>Compartilhar / Salvar em Arquivos</button>
+    <p>Salve também o relatório para identificar formato, duração e tamanho.</p>
+    <p><a id="metadata">Salvar relatório JSON</a></p>
+    <pre id="details"></pre>
+  </div>
+</main>
+<script src="/recorder.js" defer></script>
+</html>

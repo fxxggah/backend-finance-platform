@@ -168,27 +168,38 @@ class GeminiVoiceProbeTest {
     }
 
     @Test
-    void recognizesWebmOpusMarkersAndPreservesBytes() throws Exception {
+    void requiresDurationValidationForWebmAndPreservesBytes() throws Exception {
         // Fixture somente de reconhecimento; não simula um arquivo decodificável.
         byte[] markers = "\u001a\u0045\u00df\u00a3webmA_OPUS\u001f\u0043\u00b6\u0075sample"
                 .getBytes(java.nio.charset.StandardCharsets.ISO_8859_1);
         Path path = temporary.resolve("audio.bin");
         Files.write(path, markers);
-        var audio = GeminiVoiceProbe.readAudio(path);
+        var calls = new java.util.concurrent.atomic.AtomicInteger();
+        var audio = GeminiVoiceProbe.readAudio(path, (bytes, mime) -> {
+            assertThat(mime).isEqualTo("audio/webm");
+            assertThat(bytes).isEqualTo(markers);
+            calls.incrementAndGet();
+            return java.time.Duration.ofSeconds(1);
+        });
         assertThat(audio.mimeType()).isEqualTo("audio/webm");
         assertThat(audio.bytes()).isEqualTo(markers);
+        assertThat(calls.get()).isEqualTo(1);
+        assertThatThrownBy(() -> GeminiVoiceProbe.readAudio(path, (bytes, mime) -> java.time.Duration.ofSeconds(31)))
+                .isInstanceOf(IllegalArgumentException.class);
         Files.writeString(path, "fakewebmA_OPUSsample");
         assertThatThrownBy(() -> GeminiVoiceProbe.readAudio(path)).isInstanceOf(IllegalArgumentException.class);
     }
 
     @Test
-    void recognizesMp4AudioMarkersAndRejectsVideo() throws Exception {
-        // O reconhecimento não valida duração, codec completo ou estrutura dos boxes.
+    void requiresDurationValidationForMp4AndRejectsVideo() throws Exception {
+        // Injeção apenas do medidor para testar roteamento; decoder real tem verificação manual separada.
         byte[] markers = "\u0000\u0000\u0000\u0018ftypM4A moovmp4amdatdata"
                 .getBytes(java.nio.charset.StandardCharsets.ISO_8859_1);
         Path path = temporary.resolve("audio.m4a");
         Files.write(path, markers);
-        assertThat(GeminiVoiceProbe.readAudio(path).mimeType()).isEqualTo("audio/mp4");
+        assertThat(GeminiVoiceProbe.readAudio(path, (bytes, mime) -> java.time.Duration.ofSeconds(30)).mimeType()).isEqualTo("audio/mp4");
+        assertThatThrownBy(() -> GeminiVoiceProbe.readAudio(path, (bytes, mime) -> { throw new IllegalArgumentException("Não comprovado"); }))
+                .isInstanceOf(IllegalArgumentException.class);
         Files.write(path, "\u0000\u0000\u0000\u0018ftypM4A moovmp4avide mdat".getBytes(java.nio.charset.StandardCharsets.ISO_8859_1));
         assertThatThrownBy(() -> GeminiVoiceProbe.readAudio(path)).isInstanceOf(IllegalArgumentException.class);
     }

@@ -238,3 +238,9 @@ Sempre incluir o aviso: *"Simulação ilustrativa, não é recomendação financ
 - **Regra crítica:** se `monthlyPayment <= debtAmount × monthlyRate`, a dívida nunca é paga → **422** com mensagem clara (evita loop infinito).
 - Limite de segurança de 600 meses no cálculo.
 - Retorna meses, total pago, total de juros e tabela de amortização.
+
+## 11. V2 — limite de áudio confirmado em 14/11/2026
+
+- Uma gravação deve ter duração positiva e **no máximo 30 segundos**, validada no backend antes de enviar ao provedor. Na fase 1, isso é aplicado somente na prova técnica manual; o endpoint será criado nas fases seguintes.
+- Na PoC, arquivos têm no máximo 2 MiB; WebM/Opus e MP4/AAC exigem decodificação local. A maior duração entre amostras, intervalo dos timestamps e metadado disponível prevalece, incluindo padding. Exatamente 30 s é aceito, sem arredondar duração maior para caber no limite.
+- Duração desconhecida, erro de decodificação ou ferramenta ausente impede o envio. O relógio do navegador e a extensão do arquivo não comprovam a duração. A captura para em 29 s para deixar margem ao contêiner/codec.

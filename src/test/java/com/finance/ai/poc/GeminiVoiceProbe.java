@@ -45,13 +45,22 @@ public final class GeminiVoiceProbe {
 
     public static void main(String[] args) {
         // A confirmação impede chamadas acidentais; não verifica o faturamento no Google.
-        if (args.length != 2 || !"--free-project-confirmed".equals(args[0])) {
-            System.err.println("Uso: GeminiVoiceProbe --free-project-confirmed <arquivo.wav|arquivo.webm|arquivo.m4a|--text-smoke>");
+        if (args.length != 2 || !List.of("--free-project-confirmed", "--inspect-audio").contains(args[0])) {
+            System.err.println("Uso: GeminiVoiceProbe --free-project-confirmed <arquivo|--text-smoke> ou --inspect-audio <arquivo>");
             System.exit(2);
             return;
         }
         try {
-            run(args[1]);
+            if ("--inspect-audio".equals(args[0])) {
+                AudioInput audio = readAudio(Path.of(args[1]));
+                System.out.println("audioValido=true mime=" + audio.mimeType() + " bytes=" + audio.bytes().length
+                        + " duracao=" + audio.duration());
+            } else {
+                run(args[1]);
+            }
+        } catch (MediaDurationProbe.AudioValidationException ex) {
+            System.err.println(ex.getMessage()); // Apenas mensagens constantes da validação local.
+            System.exit(1);
         } catch (ApiException ex) {
             System.err.println("Prova interrompida: Gemini retornou HTTP " + ex.code()
                     + ". Sem nova tentativa ou troca de modelo.");
@@ -206,8 +215,11 @@ public final class GeminiVoiceProbe {
         return Content.fromParts(Part.fromBytes(audio.bytes(), audio.mimeType()));
     }
 
-    /** Reconhecimento limitado de contêiner para a PoC local; não é um parser/decoder de produção. */
     static AudioInput readAudio(Path path) throws Exception {
+        return readAudio(path, MediaDurationProbe::validate);
+    }
+
+    static AudioInput readAudio(Path path, DurationValidator validator) throws Exception {
         long size = Files.size(path);
         if (size < 16 || size > MAX_BYTES) {
             throw new IllegalArgumentException("Áudio vazio ou acima de 2 MiB.");
@@ -221,23 +233,42 @@ public final class GeminiVoiceProbe {
         }
         String markers = new String(bytes, java.nio.charset.StandardCharsets.ISO_8859_1);
         if (markers.startsWith("RIFF") && markers.startsWith("WAVE", 8)) {
-            return new AudioInput(readWav(path), "audio/wav");
+            byte[] wav = readWav(path);
+            try (var stream = AudioSystem.getAudioInputStream(new ByteArrayInputStream(wav))) {
+                long nanos = BigDecimal.valueOf(stream.getFrameLength()).movePointRight(9)
+                        .divide(new BigDecimal(Float.toString(stream.getFormat().getFrameRate())), 0, java.math.RoundingMode.UP)
+                        .longValueExact();
+                return checkedAudio(wav, "audio/wav", java.time.Duration.ofNanos(nanos));
+            }
         }
         if ((bytes[0] & 0xff) == 0x1a && (bytes[1] & 0xff) == 0x45
                 && (bytes[2] & 0xff) == 0xdf && (bytes[3] & 0xff) == 0xa3
                 && markers.contains("webm") && markers.contains("A_OPUS")
                 && markers.contains("\u001f\u0043\u00b6\u0075")
                 && !markers.contains("V_VP") && !markers.contains("V_AV1")) {
-            return new AudioInput(bytes, "audio/webm");
+            return checkedAudio(bytes, "audio/webm", validator.validate(bytes, "audio/webm"));
         }
         if (markers.startsWith("ftyp", 4) && markers.contains("moov")
                 && markers.contains("mdat") && markers.contains("mp4a") && !markers.contains("vide")) {
-            return new AudioInput(bytes, "audio/mp4");
+            return checkedAudio(bytes, "audio/mp4", validator.validate(bytes, "audio/mp4"));
         }
         throw new IllegalArgumentException("Contêiner não reconhecido pela prova.");
     }
 
-    record AudioInput(byte[] bytes, String mimeType) { }
+    private static AudioInput checkedAudio(byte[] bytes, String mime, java.time.Duration duration) {
+        if (duration == null || duration.isNegative() || duration.isZero()
+                || duration.compareTo(java.time.Duration.ofSeconds(30)) > 0) {
+            throw new IllegalArgumentException("O áudio deve ter duração positiva de até 30 segundos.");
+        }
+        return new AudioInput(bytes, mime, duration);
+    }
+
+    @FunctionalInterface
+    interface DurationValidator {
+        java.time.Duration validate(byte[] bytes, String mime) throws Exception;
+    }
+
+    record AudioInput(byte[] bytes, String mimeType, java.time.Duration duration) { }
 
     /** A decisão SINGLE/MULTIPLE é local; dados de vários eventos nunca compõem um rascunho único. */
     static Draft parseExtraction(String text) throws Exception {

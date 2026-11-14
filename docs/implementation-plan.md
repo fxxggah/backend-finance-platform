@@ -4,11 +4,11 @@ Leia **no início de cada tarefa**: fase atual, dono e status. Uma feature por v
 
 **Legenda:** `[ ]` a fazer · `[~]` em andamento · `[x]` pronto (cumpre a Definição de pronto do `AGENTS.md`)
 
-## Situação atual (13/11/2026)
+## Situação atual (14/11/2026)
 
 - **Responsável:** Gabriel, autor e responsável pelo projeto inteiro. Frontend em outro repositório; o trabalho aqui é restrito ao backend.
 - **V1:** funcional, conforme confirmação de Gabriel. Os checklists antigos estão desatualizados e foram preservados abaixo como histórico, sem declarar verificações individuais como realizadas nesta tarefa.
-- **Fase atual:** V2 / fase 1 — prova técnica gratuita, em andamento. A extração `voice-poc-v4-events` delega a classificação ao Java pela contagem de eventos; a política aprovada `account-installments-v1` normaliza parcelas ausentes em conta para 1 e mantém pendência em cartão. As 80 medições anteriores ficam preservadas sob a política antiga. Restam validação de duração/integridade dos formatos e relatórios de captura antes de concluir a fase. Fase 0 concluída em 13/11/2026.
+- **Fase atual:** V2 / fase 1 — prova técnica gratuita, em andamento. A extração `voice-poc-v4-events` delega a classificação ao Java pela contagem de eventos; a política aprovada `account-installments-v1` normaliza parcelas ausentes em conta para 1 e mantém pendência em cartão. As 80 medições anteriores ficam preservadas sob a política antiga. A validação local de duração/decodificação de WebM/MP4 foi implementada; relatórios de captura/navegador seguem pendentes para fechar a fase. Fase 0 concluída em 13/11/2026.
 - **Base técnica confirmada:** Java 25, Spring Boot 4.1.1, pacote `com.finance`.
 - A distribuição antiga entre Biel, Breno e João e as decisões de divisão de trabalho abaixo são históricas; o responsável atual por todas as fases é Gabriel.
 
@@ -34,7 +34,7 @@ Leia **no início de cada tarefa**: fase atual, dono e status. Uma feature por v
 - Campos ausentes ou ambíguos devem aparecer como pendências; não inventar conta/cartão/categoria. Detectar múltiplos lançamentos e pedir separação, sem descartar parte da gravação silenciosamente.
 - Cota persistente por usuário e proteção global do projeto, com reserva atômica e tratamento de repetição/concorrência. Não manter transação de banco aberta durante a chamada externa.
 - Cota do FIN usa `America/Sao_Paulo`; os limites e a janela do provedor são independentes. Ao esgotar capacidade, oferecer preenchimento manual, sem troca automática para serviço pago.
-- Hipóteses para avaliação, ainda não limites comerciais: até 30 segundos por áudio e 10 solicitações por usuário/dia. Ajustar ao limite real do projeto e aos resultados do piloto.
+- Limite técnico confirmado por Gabriel: até 30 segundos por áudio, comprovados no backend. Hipótese de cota para avaliação, ainda não limite comercial: 10 solicitações por usuário/dia; ajustar ao limite real do projeto e aos resultados do piloto.
 - Adiar `transactions.source`, schema de assinaturas e escolha do gateway. O contrato de rascunho, erros e extensão de `/users/me` será definido antes da implementação, em `docs/api-spec.md`.
 
 ### Fases da V2
@@ -72,7 +72,7 @@ Preparação iniciada em 13/11/2026:
 
 - [x] Gabriel confirmou projeto `fin-app` no nível gratuito pelo AI Studio.
 - [x] Limites informados para Gemini 3.1 Flash Lite: **15 RPM, 250.000 TPM e 500 RPD**, compartilhados pelo projeto. Gemini 3.5 Flash Lite aparece com os mesmos limites; 2.5 Flash Lite com 10 RPM, 250.000 TPM e 20 RPD.
-- [x] Modelo inicial escolhido: `gemini-3.1-flash-lite`; áudio WAV e saída estruturada validados com SDK 1.79.0. Os formatos dos navegadores ainda precisam de teste.
+- [x] Modelo inicial escolhido: `gemini-3.1-flash-lite`; áudio WAV e saída estruturada validados com SDK 1.79.0. WebM/Opus e MP4/AAC também foram testados nas etapas seguintes, registradas abaixo.
 - [x] `.env` está ignorado pelo Git (checagem de caminho, sem ler o conteúdo).
 - [x] Disponibilizar `GEMINI_API_KEY` no processo que executará a prova. Presença confirmada sem imprimir o valor e sem ler `.env`.
 - [x] Preparar e executar a prova optativa com SDK oficial `google-genai:1.79.0`, em escopo `test`, sem chamadas externas nos testes normais.
@@ -83,7 +83,9 @@ Preparação iniciada em 13/11/2026:
 - [x] Implementar classificação local por contagem de eventos e verificar os 50 casos originais, os 20 adicionais e 10 frases inéditas antes da primeira chamada v4. Todos os 16 múltiplos com resposta foram recusados; 2 dos 18 múltiplos planejados ficaram sem resposta por HTTP 503.
 - [x] Verificar HTTP 429, timeout e limite de falhas em servidor local, sem chave real ou chamadas ao Google.
 - [x] Alinhar ausência de parcelas com Gabriel e implementar a normalização no backend da PoC, com testes locais e política versionada, sem reescrever os resultados históricos.
-- [ ] Completar validação técnica de duração/integridade dos formatos e relatórios de captura antes de concluir a fase.
+- [x] Validar no backend da PoC a duração de WebM/Opus e MP4/AAC, impondo até 30 s por decodificação local, sem confiar só no cabeçalho; testar fronteira, duração adulterada e truncamento. Arquivos originais preservados e aceitos localmente.
+- [x] Corrigir a captura para compartilhar áudio e relatório JSON juntos quando suportado, identificando o nome do áudio no relatório e mantendo os dois links como alternativa.
+- [ ] Receber/verificar os relatórios JSON de captura/navegador correspondentes aos dois arquivos antes de concluir a fase. Se as capturas originais não estiverem mais abertas e os relatórios não tiverem sido salvos, realizar novas capturas no Chrome e Safari com seus respectivos pares áudio/JSON. A decodificação não reconstrói esses relatórios nem comprova ausência de toda corrupção possível.
 
 Não houve leitura do `.env`. O controle do faturamento continua manual no projeto do Google; o nome do modelo e a chave não garantem custo zero por si só.
 
@@ -101,6 +103,27 @@ Não houve leitura do `.env`. O controle do faturamento continua manual no proje
 - Nenhum conteúdo da resposta ou áudio foi logado; apenas métricas e resultado booleano da comparação. O arquivo sintético temporário ficou em `target/ai-poc`, ignorado pelo Git e removido por `clean`.
 - **Pendente para concluir a fase:** validar gravações reais de teste do Chrome/Safari com dados fictícios, aproximadamente 50 casos e resultados esperados, métricas por campo/p50/p95, e cenários de indisponibilidade além do 503 observado. Não avançar para endpoint público nesta etapa.
 
+### Validação local de duração (14/11/2026)
+
+- `MediaDurationProbe` decodifica WebM/Opus e MP4/AAC com **ffprobe 9.0.2**, antes do envio ao Gemini. Limites: duração positiva até 30 s inclusive, 2 MiB, uma única trilha de áudio, 5 s por processo e saídas limitadas. Sem nova dependência Maven, transcodificação, cópia temporária do áudio ou chamada ao Google nesta tarefa.
+- Os dois arquivos originais fornecidos por Gabriel foram aceitos: WebM **10,74 s** e MP4 **9,769333334 s**. O MP4 do Safari declarava apenas **0,513333 s** no metadado do formato; por isso a validação também usa amostras e timestamps decodificados.
+- Fixtures sintéticas locais: MP4 de 29,9 s e 30 s aceitos; 30,1 s recusado. WebM de 29,908 s aceito; 30,008 s e 30,108 s recusados. Padding também conta: o arquivo WebM gerado com `-t 30` declarou 30,008 s. A captura continua parando em 29 s.
+- WebM acima do limite com cabeçalho adulterado para declarar 0,5 s foi recusado; WebM e MP4 truncados foram recusados. Testes offline cobrem exatamente 30 s, excesso de uma amostra, intervalos de timestamps, metadado divergente, frames ausentes/inválidos, codec/trilhas inesperados e JSON inválido/excessivo. Comparações usam razões exatas antes do arredondamento para nanossegundos.
+- Binários portáteis ficam apenas em `build/ai-poc-media`, ignorado pelo Git. Pacote Windows obtido do [provedor listado pelo FFmpeg](https://www.gyan.dev/ffmpeg/builds/packages/ffmpeg-9.0.2-essentials_build.zip), com SHA-256 conferido: `60f467265b1e312373dbcd92200c2618a74850f98d3d078e94296bb3fa2047ba`. Provisionar explicitamente a ferramenta no ambiente; sem download automático durante validação. MP4 que dependa de seek incompatível com stdin falha fechado.
+- **Verificação final:** `mvnw.cmd -U clean compile` passou com JDK 25. Regressão completa: **912 testes, zero falhas, zero erros e zero ignorados**, incluindo 61 da PoC (10 novos de duração), MySQL/Testcontainers e verificações existentes de isolamento. Mesma cópia temporária do POM com apenas a saída em `build/ai-poc-verification`, removida ao terminar; nenhum ajuste persistente no POM. `git diff --check` passou.
+- A primeira tentativa da regressão falhou com Docker desligado e com uma falha no teste local de HTTP 429 (retornou `REQUEST_ERROR`). Após iniciar o Docker, a suíte inteira passou, inclusive esse teste, sem alterar o teste existente. Não foi demonstrada uma relação causal entre os dois problemas; logs das tentativas ficam em `build/duration-regression*.log`.
+- Definição de pronto desta tarefa: regra de duração testada e docs atualizados. Não houve mudança de schema, endpoint ou DTO; migration e atualização de Swagger não se aplicam. A validação implementada continua no escopo da PoC da fase 1; a integração ao endpoint real pertence às fases seguintes.
+
+Para verificar um arquivo sem usar a chave ou enviar áudio, depois de compilar as classes de teste e montar o classpath conforme a seção seguinte:
+
+```powershell
+$env:FIN_FFPROBE_PATH = (Resolve-Path 'build/ai-poc-media/ffmpeg-9.0.2/ffmpeg-9.0.2-essentials_build/bin/ffprobe.exe').Path
+$cp = 'target/test-classes;target/classes;' + (Get-Content target/ai-poc-classpath.txt -Raw).Trim()
+& "$env:JAVA_HOME/bin/java.exe" -cp $cp com.finance.ai.poc.GeminiVoiceProbe --inspect-audio 'C:/caminho/audio.webm'
+```
+
+O comando encerra com código 0 e MIME/bytes/duração quando aceita; código 1 quando recusa. A configuração de `FIN_FFPROBE_PATH` também é necessária para enviar WebM/MP4 com a flag de projeto gratuito. Os testes unitários comuns não exigem ffprobe instalado. Relatórios JSON de captura/navegador continuam pendentes; não foram reconstruídos a partir dos arquivos.
+
 ### Executar a prova manual no Windows
 
 Executar em PowerShell, na raiz do backend, com `GEMINI_API_KEY` já configurada no ambiente e JDK 25. O programa não carrega `.env`. Confirmar no AI Studio que o projeto segue gratuito antes de usar a flag. Cada execução realiza no máximo uma chamada; os testes comuns não usam a chave.
@@ -115,11 +138,23 @@ $probeClasspath = 'target\test-classes;target\classes;' + (Get-Content -Raw -Lit
 & "$env:JAVA_HOME\bin\java.exe" -cp $probeClasspath com.finance.ai.poc.GeminiVoiceProbe --free-project-confirmed --text-smoke
 
 # Para áudio, executar separadamente com arquivo fictício até 2 MiB:
-# WAV PCM até 30 s; WebM/Opus e MP4/AAC têm suporte experimental (duração ainda manual).
+# WAV PCM até 30 s; WebM/Opus e MP4/AAC exigem FIN_FFPROBE_PATH (validação local de até 30 s).
 & "$env:JAVA_HOME\bin\java.exe" -cp $probeClasspath com.finance.ai.poc.GeminiVoiceProbe --free-project-confirmed 'C:\caminho\audio-ficticio.wav'
 ```
 
-O indicador `correspondeAmostraFixa` só verifica a frase fictícia descrita acima; `false` para outra frase não significa erro de extração. A medição por outros casos e os formatos dos navegadores serão adicionados nas próximas tarefas da fase 1. O programa não imprime valores extraídos ou corpo da resposta. Em falhas exibe apenas classe da exceção ou código HTTP, sem mensagens brutas.
+O indicador `correspondeAmostraFixa` só verifica a frase fictícia descrita acima; `false` para outra frase não significa erro de extração. A avaliação por outros casos e os testes dos formatos estão registrados nas seções seguintes. O programa não imprime valores extraídos ou corpo da resposta. Em falhas exibe apenas classe da exceção ou código HTTP, sem mensagens brutas.
+
+### Fechamento da fase 1 — pendência manual e correção da exportação (14/11/2026)
+
+- SDK/modelo, extração dos formatos, avaliação de 80 casos com métricas, tratamento local de falhas, normalização de parcelas e limite de duração estão implementados/verificados conforme os registros desta fase. Não há endpoint ou persistência a implementar para fechar a prova; pertencem à fase 2.
+- Os relatórios de captura não foram encontrados junto dos arquivos `fin-voz-*` em Downloads. O botão de compartilhamento da ferramenta enviava somente o áudio, embora houvesse link separado para JSON. Isso é uma possível explicação para a ausência, não comprovação de como os arquivos foram transferidos.
+- Corrigidos `recorder.js` e `recorder.html`: compartilhar o par áudio + JSON quando `canShare` permitir, incluir `audioFileName` no relatório, explicar que ambos precisam ser salvos e manter os dois links quando o compartilhamento do par falhar/não existir. MIME, tamanho, duração do relógio e user agent continuam sendo medidos no navegador, sem upload ou chamada à IA. Não gerar relatórios retrospectivos para os áudios existentes.
+- Verificação local do JS: cinco cenários simulados (par suportado, não suportado, erro ao consultar suporte, falha de compartilhamento e cancelamento), com duas capturas em cada. Conferidos correspondência de nomes/bytes/MIME, envio dos dois arquivos, disponibilidade dos links e encerramento do microfone. Sintaxe conferida com `node --check`. A simulação não equivale a executar Safari no iPhone.
+- **Verificação desta correção:** `mvnw.cmd -U clean compile` passou; suíte completa com **912 testes, zero falhas, zero erros e zero ignorados**, incluindo MySQL/Testcontainers. Mesma saída isolada em `build/ai-poc-verification` por POM temporário removido ao terminar, sem alterar o POM do projeto. `git diff --check` passou. Nenhuma chamada à IA. Não houve alteração de contrato REST/schema; migration, Swagger e novos testes de isolamento não se aplicam à exportação da fixture manual.
+
+**Única pendência atual para concluir a fase:** Gabriel fornecer os dois relatórios originais ou fazer novas capturas fictícias com o par áudio/JSON no Chrome e no Safari do iPhone 13. Se a página de uma captura original ainda estiver aberta com o resultado, usar o link **Salvar relatório JSON** nela. Relatórios esperados das capturas antigas: `fin-voz-2026-11-13T18-06-18-411Z.json` e `fin-voz-2026-11-13T18-09-12-715Z.json`.
+
+Ao receber os pares, conferir nome base/nome do áudio quando disponível, bytes, MIME, navegador declarado e duração do relógio, e repetir a inspeção local do áudio original. Não exigir igualdade exata entre relógio de captura e duração decodificada; a aprovação do limite depende da decodificação. Relatório é evidência fornecida pelo cliente, não autenticação do navegador. Não é necessário reenviar áudio à IA só para validar essa correspondência; qualquer nova avaliação externa mantém as condições de autorização da prova. A fase continua `[~]` até essa verificação manual, sem inventar evidência de Safari.
 
 ### Captura de Chrome e Safari — ferramenta pronta
 
@@ -129,7 +164,7 @@ O indicador `correspondeAmostraFixa` só verifica a frase fictícia descrita aci
 - Para recriar o HTTPS com o binário local desta sessão, em outro terminal: `.\build\ai-poc-tools\cloudflared.exe tunnel --config .\build\ai-poc-tools\tunnel-config.yml --no-autoupdate --url http://127.0.0.1:8765 --protocol http2`. O arquivo de configuração é vazio (sem credenciais). Só o HTML e seu JS são expostos, nunca o diretório do projeto ou a API. Documentação: [Quick Tunnels](https://developers.cloudflare.com/tunnel/get-started/quick-tunnels/).
 - A página usa `MediaRecorder`, formato padrão nativo ou opção suportada escolhida, para preservar o arquivo original; encerra em 29 s e ao ocultar/sair da página. Salva arquivo `.webm` ou `.m4a` conforme o MIME real e relatório JSON de formato, bytes, duração medida pelo relógio da captura e navegador. Não solicita chave nem faz upload, analytics ou chamada à IA.
 - **Chrome automatizado:** captura original de WebM/Opus (22.225 bytes) e MP4/AAC (33.206 bytes) com dispositivo fictício passou, incluindo segunda gravação, links, ausência de exceções JS e todas as tracks encerradas. Verificados também CSP, recusa de POST (405) e acesso negado a `.env`, POM e recursos do backend (404). URL HTTPS respondeu 200 com página esperada e CSP. Não equivale a teste de Safari.
-- **Reconhecimento Java experimental:** detecta WAV, WebM/Opus e MP4/AAC pelos bytes, sem depender da extensão; mantém o arquivo original e seleciona `audio/wav`, `audio/webm` ou `audio/mp4`. Até 2 MiB. WebM/MP4 são reconhecidos por marcadores, não por um parser/decoder completo: duração, integridade, codecs/tracks completos e conteúdo malicioso permanecem pendentes antes de qualquer endpoint público. Para a captura manual, usar a página e uma frase curta, até 30 s.
+- **Reconhecimento Java experimental (histórico de 13/11):** inicialmente detectava WAV, WebM/Opus e MP4/AAC por marcadores, mantendo bytes/MIME e até 2 MiB, sem comprovar duração/codec/trilhas dos comprimidos. A validação local por decodificação foi implementada em 14/11 conforme a seção de duração. Isso não representa auditoria de todo conteúdo malicioso possível ou liberação de endpoint público.
 - **MP4/AAC do Chrome no Gemini:** chamada com áudio fictício aceita (`audio/mp4`), JSON válido, `UNCLEAR`, 6.910 ms, 366 tokens de entrada e 65 de saída (431 total). O dispositivo fictício não contém fala; esse resultado testa aceitação do contêiner, não precisão de transcrição nem compatibilidade do Safari.
 - **WebM do Chrome no Gemini:** primeira chamada retornou HTTP 503, sem repetição automática. Uma nova execução manual posterior aceitou o arquivo (`audio/webm`), JSON válido, `UNCLEAR`, 12.019 ms, 363 tokens de entrada e 65 de saída (428 total). O resultado verifica aceitação do contêiner sem fala, não precisão. Não houve mudança de modelo ou transcodificação.
 - **Validação desta etapa:** compilação `mvnw.cmd -U clean compile` passou; suíte completa passou com **881 testes, zero falhas, zero erros e zero ignorados** (30 testes offline da PoC). A suíte foi executada com a mesma cópia temporária do POM e saída isolada em `build/ai-poc-verification`, evitando o problema anterior da IDE; POM temporário removido. Sintaxe dos scripts conferida com `node --check`, captura em Chrome/rotas verificadas e `git diff --check` sem erros. Schema, API REST e regras do domínio financeiro não foram alterados nesta etapa.

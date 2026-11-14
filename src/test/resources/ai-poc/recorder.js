@@ -1,7 +1,7 @@
 /* Captura manual da PoC. Sem chave, upload, analytics ou chamadas ao backend. */
 'use strict';
 const el = (id) => document.getElementById(id);
-let recorder, stream, chunks, started, timer, hardStop, blobUrl, metadataUrl, file;
+let recorder, stream, chunks, started, timer, hardStop, blobUrl, metadataUrl, file, reportFile;
 let busy = false;
 const supported = window.isSecureContext && navigator.mediaDevices?.getUserMedia && window.MediaRecorder;
 const status = (message) => { el('status').textContent = message; };
@@ -35,6 +35,7 @@ el('start').addEventListener('click', async () => {
   if (blobUrl) URL.revokeObjectURL(blobUrl);
   if (metadataUrl) URL.revokeObjectURL(metadataUrl);
   file = undefined;
+  reportFile = undefined;
   try {
     stream = await navigator.mediaDevices.getUserMedia({ audio:true, video:false });
     const mime = el('format').value;
@@ -75,17 +76,22 @@ el('start').addEventListener('click', async () => {
       el('playback').hidden = false;
       el('download').href = blobUrl;
       el('download').download = file.name;
-      const report = { sample:'voice-poc-v1', mimeType, bytes:blob.size,
+      const report = { sample:'voice-poc-v1', audioFileName:file.name, mimeType, bytes:blob.size,
         captureSeconds:Math.round(duration * 1000) / 1000, createdAt:new Date().toISOString(),
         browser:navigator.userAgent, note:'Duração do relógio da captura, não validação do contêiner.' };
       const json = JSON.stringify(report,null,2);
-      metadataUrl = URL.createObjectURL(new Blob([json],{ type:'application/json' }));
+      reportFile = new File([json], `${name}.json`, { type:'application/json' });
+      metadataUrl = URL.createObjectURL(reportFile);
       el('metadata').href = metadataUrl;
       el('metadata').download = `${name}.json`;
       el('details').textContent = json;
-      el('share').hidden = !(navigator.canShare && navigator.canShare({ files:[file] }));
+      let canSharePair = false;
+      try { canSharePair = !!navigator.canShare?.({ files:[file, reportFile] }); }
+      catch { /* Os links individuais continuam disponíveis. */ }
+      el('share').hidden = !canSharePair;
       el('result').hidden = false;
-      status('Gravação pronta. Ouça e salve o áudio original e o relatório.');
+      status(canSharePair ? 'Gravação pronta. Ouça e compartilhe os dois arquivos juntos ou salve pelos links.'
+        : 'Gravação pronta. Ouça e use os dois links: Salvar áudio original e Salvar relatório JSON.');
     }, { once:true });
     recorder.start(500);
     started = performance.now();
@@ -105,9 +111,11 @@ el('start').addEventListener('click', async () => {
 });
 el('stop').addEventListener('click', stopRecording);
 el('share').addEventListener('click', async () => {
-  if (!file) return;
-  try { await navigator.share({ files:[file], title:'FIN · áudio fictício de teste' }); }
-  catch (error) { if (error.name !== 'AbortError') status('Use o link Salvar áudio original.'); }
+  if (!file || !reportFile) return;
+  try { await navigator.share({ files:[file, reportFile], title:'FIN · áudio fictício e relatório de teste' }); }
+  catch (error) {
+    if (error.name !== 'AbortError') status('Use os dois links: Salvar áudio original e Salvar relatório JSON.');
+  }
 });
 document.addEventListener('visibilitychange', () => { if (document.hidden) stopRecording(); });
 window.addEventListener('pagehide', () => { stopRecording(); releaseMicrophone(); });

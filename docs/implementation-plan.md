@@ -4,11 +4,11 @@ Leia **no início de cada tarefa**: fase atual, dono e status. Uma feature por v
 
 **Legenda:** `[ ]` a fazer · `[~]` em andamento · `[x]` pronto (cumpre a Definição de pronto do `AGENTS.md`)
 
-## Situação atual (14/11/2026)
+## Situação atual (16/11/2026)
 
 - **Responsável:** Gabriel, autor e responsável pelo projeto inteiro. Frontend em outro repositório; o trabalho aqui é restrito ao backend.
 - **V1:** funcional, conforme confirmação de Gabriel. Os checklists antigos estão desatualizados e foram preservados abaixo como histórico, sem declarar verificações individuais como realizadas nesta tarefa.
-- **Fase atual:** V2 / fase 1 — prova técnica gratuita, em andamento. A extração `voice-poc-v4-events` delega a classificação ao Java pela contagem de eventos; a política aprovada `account-installments-v1` normaliza parcelas ausentes em conta para 1 e mantém pendência em cartão. As 80 medições anteriores ficam preservadas sob a política antiga. A validação local de duração/decodificação de WebM/MP4 foi implementada; relatórios de captura/navegador seguem pendentes para fechar a fase. Fase 0 concluída em 13/11/2026.
+- **Fase atual:** V2 / fase 3 — PRO e cotas, em preparação desde 16/11/2026, responsável Gabriel. Fase 2 concluída em ambiente de teste em 14/11/2026. Rota de rascunho segue restrita a dev e desativada por padrão. As regras de concessão manual, contagem e limites da cota da fase 3 estão em alinhamento antes da implementação. Relatórios de captura ausentes permanecem limitação da fase 1; experiência completa nos navegadores será validada na fase 4.
 - **Base técnica confirmada:** Java 25, Spring Boot 4.1.1, pacote `com.finance`.
 - A distribuição antiga entre Biel, Breno e João e as decisões de divisão de trabalho abaixo são históricas; o responsável atual por todas as fases é Gabriel.
 
@@ -44,9 +44,9 @@ Todas as fases têm **Gabriel** como responsável. Executar uma tarefa por vez.
 | Fase | Entrega | Critério de conclusão | Status |
 |---|---|---|---|
 | 0 | Documentação e base | Decisões registradas, responsável/status corrigidos, compilação e testes verificados | [x] |
-| 1 | Prova técnica gratuita | SDK/modelo/formatos validados com dados fictícios; precisão, latência e consumo medidos | [~] |
-| 2 | Áudio para rascunho | Extração, validação e confirmação verificadas em ambiente de teste; sem escrita financeira pelo modelo | [ ] |
-| 3 | PRO e cotas | Acesso manual com validade, bloqueio de BASIC antes da chamada e cotas resistentes à concorrência | [ ] |
+| 1 | Prova técnica gratuita | SDK/modelo/formatos validados com dados fictícios; precisão, latência e consumo medidos | [x] |
+| 2 | Áudio para rascunho | Extração, validação e confirmação verificadas em ambiente de teste; sem escrita financeira pelo modelo | [x] |
+| 3 | PRO e cotas | Acesso manual com validade, bloqueio de BASIC antes da chamada e cotas resistentes à concorrência | [~] |
 | 4 | Integração e piloto | Fluxo completo nos navegadores, revisão obrigatória, fallback manual e controle de liberação | [ ] |
 | 5 | Pagamento | Checkout hospedado e webhook com assinatura, idempotência e tratamento de eventos fora de ordem | [ ] |
 
@@ -85,7 +85,7 @@ Preparação iniciada em 13/11/2026:
 - [x] Alinhar ausência de parcelas com Gabriel e implementar a normalização no backend da PoC, com testes locais e política versionada, sem reescrever os resultados históricos.
 - [x] Validar no backend da PoC a duração de WebM/Opus e MP4/AAC, impondo até 30 s por decodificação local, sem confiar só no cabeçalho; testar fronteira, duração adulterada e truncamento. Arquivos originais preservados e aceitos localmente.
 - [x] Corrigir a captura para compartilhar áudio e relatório JSON juntos quando suportado, identificando o nome do áudio no relatório e mantendo os dois links como alternativa.
-- [ ] Receber/verificar os relatórios JSON de captura/navegador correspondentes aos dois arquivos antes de concluir a fase. Se as capturas originais não estiverem mais abertas e os relatórios não tiverem sido salvos, realizar novas capturas no Chrome e Safari com seus respectivos pares áudio/JSON. A decodificação não reconstrói esses relatórios nem comprova ausência de toda corrupção possível.
+- [x] Encerrar a prova com as evidências existentes, por decisão explícita de Gabriel em 14/11/2026. Relatórios JSON de captura não recebidos; sua ausência é limitação registrada, não bloqueio da fase 1. Não foram inventados relatórios nem comprovada a origem dos arquivos por decodificação. Experiência completa no Chrome/Safari será verificada na fase 4.
 
 Não houve leitura do `.env`. O controle do faturamento continua manual no projeto do Google; o nome do modelo e a chave não garantem custo zero por si só.
 
@@ -152,9 +152,65 @@ O indicador `correspondeAmostraFixa` só verifica a frase fictícia descrita aci
 - Verificação local do JS: cinco cenários simulados (par suportado, não suportado, erro ao consultar suporte, falha de compartilhamento e cancelamento), com duas capturas em cada. Conferidos correspondência de nomes/bytes/MIME, envio dos dois arquivos, disponibilidade dos links e encerramento do microfone. Sintaxe conferida com `node --check`. A simulação não equivale a executar Safari no iPhone.
 - **Verificação desta correção:** `mvnw.cmd -U clean compile` passou; suíte completa com **912 testes, zero falhas, zero erros e zero ignorados**, incluindo MySQL/Testcontainers. Mesma saída isolada em `build/ai-poc-verification` por POM temporário removido ao terminar, sem alterar o POM do projeto. `git diff --check` passou. Nenhuma chamada à IA. Não houve alteração de contrato REST/schema; migration, Swagger e novos testes de isolamento não se aplicam à exportação da fixture manual.
 
-**Única pendência atual para concluir a fase:** Gabriel fornecer os dois relatórios originais ou fazer novas capturas fictícias com o par áudio/JSON no Chrome e no Safari do iPhone 13. Se a página de uma captura original ainda estiver aberta com o resultado, usar o link **Salvar relatório JSON** nela. Relatórios esperados das capturas antigas: `fin-voz-2026-11-13T18-06-18-411Z.json` e `fin-voz-2026-11-13T18-09-12-715Z.json`.
+**Decisão de encerramento em 14/11/2026:** Gabriel dispensou os relatórios como requisito para a fase 1 e pediu início da fase 2. Os relatórios não foram recebidos e não serão gerados retrospectivamente. A compatibilidade dos formatos foi testada, mas não se considera a ausência de relatórios uma comprovação do navegador de origem ou da experiência completa no Safari.
 
-Ao receber os pares, conferir nome base/nome do áudio quando disponível, bytes, MIME, navegador declarado e duração do relógio, e repetir a inspeção local do áudio original. Não exigir igualdade exata entre relógio de captura e duração decodificada; a aprovação do limite depende da decodificação. Relatório é evidência fornecida pelo cliente, não autenticação do navegador. Não é necessário reenviar áudio à IA só para validar essa correspondência; qualquer nova avaliação externa mantém as condições de autorização da prova. A fase continua `[~]` até essa verificação manual, sem inventar evidência de Safari.
+Na fase 4, usar novos pares áudio/JSON para conferir nomes, bytes, MIME, navegador declarado e duração do relógio, junto com a inspeção local. Não exigir igualdade exata entre relógio e duração decodificada; o limite depende da decodificação. Relatório é evidência declarada pelo cliente, não autenticação do navegador. Não reenviar áudio à IA só para validar correspondência; qualquer nova avaliação externa mantém as condições de autorização da prova.
+
+### Fase 2 — entregas
+
+- [x] Alinhar e documentar contrato de áudio para rascunho e a resposta da confirmação existente.
+- [x] Promover extração/validação da PoC para a feature de IA, com SDK oficial, Clock injetado e saída estruturada validada.
+- [x] Carregar somente categorias, contas e cartões ativos do usuário do JWT; usar referências temporárias no contexto e revalidar propriedade/estado ao montar o rascunho.
+- [x] Validar tamanho, formato e duração antes da chamada; evitar persistência de áudio, transcrição, contexto e rascunho.
+- [x] Retornar dados editáveis e pendências; recusar múltiplas transações; confirmar somente pela criação existente, com todas as regras revalidadas.
+- [x] Traduzir falhas do provedor para ProblemDetail sem logar conteúdo sensível, com timeout, uma tentativa e sem fallback pago.
+- [x] Manter a rota desativada por padrão e restrita ao ambiente de desenvolvimento até as proteções da fase 3.
+- [x] Cobrir contrato, isolamento, validação, erros e confirmação com testes offline; compilar, executar regressão e atualizar docs.
+
+### Fase 3 — regras alinhadas em 16/11/2026
+
+- Gabriel escolheu **10 sucessos por usuário PRO/dia**, configuráveis; falhas não consomem a cota pessoal. Dia do sucesso em America/Sao_Paulo. Uma reserva bloqueia concorrência; o sucesso é registrado ao finalizar um rascunho validado, antes de devolver HTTP 200. Desconexão depois desse registro não permite garantir entrega ao cliente e mantém o sucesso contado.
+- PRO manual por `users.pro_expires_at`, sem plano no JWT e sem endpoint administrativo. Verificar usuário ativo e validade no banco em cada operação. BASIC ou validade expirada é bloqueado antes da validação/chamada de IA. Concessão/revogação por SQL documentado, executado somente pelo operador.
+- Gabriel delegou a escolha dos limites globais. Adotados **10 tentativas/minuto** em janela móvel e **400 tentativas/dia** no fuso America/Los_Angeles (meia-noite do Pacífico segundo a [documentação do Gemini](https://ai.google.dev/gemini-api/docs/rate-limits)). Configuráveis, com margem em relação aos valores informados no AI Studio em 13/11; não constituem confirmação de cotas atuais nem contabilizam PoC/outros consumidores do mesmo projeto. Erros e reservas abandonadas continuam contando globalmente, sem fallback pago. HTTP 429 do provedor bloqueia novas reservas por 60 s, configuráveis.
+- Uma reserva em andamento por usuário, com lease de 120 s; requisição expirada não pode finalizar como sucesso. `Idempotency-Key` obrigatório, hash persistido junto do hash do áudio, sem armazenar áudio/contexto/resposta. Repetição devolve 409, sem nova chamada nem replay de dados financeiros; usar nova chave para tentar novamente intencionalmente. A reserva/contadores são atômicos em MySQL e sobrevivem a reinício/múltiplas instâncias.
+- Rota continua dev/opt-in até o piloto. Não implementar pagamento, gateway ou limites comerciais do BASIC nesta fase.
+
+Checklist:
+
+- [ ] Migration de PRO e reservas/controle global; atualizar modelo de dados.
+- [ ] Expor plano efetivo e validade em `/users/me`/usuário do login; verificar validade por Clock injetado.
+- [ ] Guardar reservas, impedir repetição/concorrência e aplicar cota pessoal de sucessos e orçamento global de tentativas.
+- [ ] Integrar a proteção ao rascunho e documentar concessão/revogação manual.
+- [ ] Testar expiração, falhas, concorrência real, fusos, exclusão de conta e isolamento; validar compilação/regressão/OpenAPI.
+
+### Fase 2 — implementação e uso local
+
+- Contrato aprovado por Gabriel: `POST /api/v1/ai/transaction-drafts`, áudio binário no corpo, até 2 MiB/30 s, rascunho editável com pendências e confirmação pelo endpoint existente. A resposta de criação de parcelamento permanece um objeto (primeira parcela); corrigido o doc antigo que dizia lista.
+- Feature em `com.finance.ai`, sem nova entidade/migration. SDK oficial `google-genai:1.79.0` promovido de test para execução, sem mudar versão. Modelo fixo `gemini-3.1-flash-lite`. Prompt adaptado ao catálogo dinâmico com versão `voice-draft-v1`, derivado das regras experimentais v4; não apresentar as métricas históricas da PoC como nova medição desse prompt.
+- Contêiner e limite de duração validados antes de carregar contexto/chamar IA. Decoder nativo da PoC promovido para `FfprobeAudioInspector`, compartilhado pelo adaptador manual. Áudio de requisição lido como stream limitado, sem multipart/transcodificação ou arquivo temporário criado pela feature.
+- Snapshot com até 100 recursos ativos por tipo e referências temporárias por requisição; IDs reais, saldos e histórico ficam fora do contexto enviado. Catálogo maior é recusado antes da chamada, sem truncar. Carregamento e revalidação são transações curtas; a orquestração suspende qualquer transação ambiente durante a chamada externa. Campos financeiros/contexto não são logados pelo código novo e o toString do DTO público é redigido.
+- Parser estrito de eventos, BigDecimal e datas via Clock em São Paulo; referências são resolvidas apenas no snapshot e revalidadas no banco por userId/estado. Recusa múltiplos, aplica a política aprovada de parcelas e mantém pendências. Não grava transação. Testes demonstram que somente a confirmação existente grava e revalida recursos alterados desde o rascunho; compra parcelada conserva soma e devolve primeira parcela.
+- Rota criada somente com perfil `dev`, sem `prod`, e `FIN_AI_ENABLED=true`; desativada por padrão. Configuração testada com perfil prod e com dev+prod para impedir exposição acidental. PRO/cotas continuam exclusivos da fase 3. Testes usam WAVs fictícios, mocks e servidor HTTP em loopback; nenhuma nova chamada ao Google ou medição de precisão real nesta etapa.
+- **Verificação:** `mvnw.cmd -U clean compile` passou com JDK 25. Regressão completa: **956 testes, zero falhas, zero erros e zero ignorados** (44 novos da fase 2). Após completar as anotações de erros no OpenAPI, compilação repetida e os **9 testes de integração da feature passaram novamente**, incluindo schema/respostas do Swagger. Testes executados com o mesmo POM em saída isolada `build/ai-poc-verification`; POM temporário removido. `git diff --check` passou.
+- **Decoder real:** 11 arquivos verificados localmente pelo `AudioValidator` promovido: os dois áudios originais aceitos, fixtures de fronteira aceitas/recusadas conforme duração, arquivos truncados e duração adulterada recusados. Sem envio ao Google. A primeira rodada focalizada teve cinco erros de configuração dos mocks de integração, corrigidos antes das verificações finais; não se alteraram regras para fazê-la passar.
+- **Definição de pronto:** regras novas cobertas por testes de áudio/parser/service; isolamento e confirmação com JWT/MySQL; schema existente validado por Flyway/Hibernate, sem migration necessária; OpenAPI e docs atualizados. Frontend, experiência real no Safari, precisão do prompt dinâmico em piloto, PRO/cotas e liberação em produção seguem nas fases posteriores; não são declarados como entregues nesta fase.
+
+Para testar manualmente com usuário/catálogo/áudio fictícios, chave já configurada no ambiente/configuração de desenvolvimento e MySQL local disponível:
+
+```powershell
+$env:JAVA_HOME = 'C:\Program Files\Java\jdk-25.0.5.0.2'
+$env:FIN_AI_ENABLED = 'true'
+$env:FIN_FFPROBE_PATH = (Resolve-Path 'build/ai-poc-media/ffmpeg-9.0.2/ffmpeg-9.0.2-essentials_build/bin/ffprobe.exe').Path
+.\mvnw.cmd spring-boot:run '-Dspring-boot.run.profiles=dev'
+```
+
+Com o backend iniciado, usar o Bearer JWT de login do FIN (não a chave Google) no Swagger em `http://localhost:8080/swagger-ui.html` ou, em outro terminal:
+
+```powershell
+curl.exe --request POST 'http://localhost:8080/api/v1/ai/transaction-drafts' --header 'Authorization: Bearer <JWT_DO_FIN>' --header 'Content-Type: audio/webm' --data-binary '@C:\caminho\audio-ficticio.webm'
+```
+
+No MP4 usar `audio/mp4`; no WAV usar `audio/wav`. Os bytes originais são mantidos e a extensão não determina o codec. Preencher `missingFields` e revisar todos os campos antes de enviar `TransactionRequest` ao `POST /transactions`. `requiresConfirmation=true` é uma indicação de revisão, não token de autorização ou proteção contra repetição. A criação existente mantém sua semântica (incluindo default de parcelas para 1 quando omitidas); a interface de revisão precisa exigir resolver as pendências antes da confirmação. Não habilitar produção ou dados reais nesta etapa.
 
 ### Captura de Chrome e Safari — ferramenta pronta
 

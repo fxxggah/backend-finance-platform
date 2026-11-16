@@ -56,7 +56,7 @@ Públicas (sem Bearer).
 
 | Método | URI | Response |
 |---|---|---|
-| GET | `/users/me` | `200 { id, name, email, pictureUrl }` |
+| GET | `/users/me` | `200 { id, name, email, pictureUrl, plan, proExpiresAt }` |
 | DELETE | `/users/me` | `204` (apaga a conta e todos os dados) |
 
 ## 4. Contas
@@ -91,7 +91,7 @@ Públicas (sem Bearer).
 |---|---|---|---|
 | GET | `/transactions?from=&to=&type=&categoryId=&accountId=&creditCardId=&q=&page=&size=` | n/a | `200` paginado |
 | GET | `/transactions/{id}` | n/a | `200` |
-| POST | `/transactions` | ver abaixo | `201` (lista, se parcelada) |
+| POST | `/transactions` | ver abaixo | `201` objeto; na compra parcelada, retorna a primeira parcela |
 | PUT | `/transactions/{id}` | igual ao POST (sem valor/parcelas se for parcelada) | `200` |
 | DELETE | `/transactions/{id}` | n/a | `204` (apaga o grupo inteiro se parcelada) |
 
@@ -231,3 +231,31 @@ Sem persistência. A resposta sempre inclui `disclaimer`: *"Simulação ilustrat
 
 - Sem autenticação: `/auth/**`, `/actuator/health`, `/v3/api-docs/**`, `/swagger-ui/**` (Swagger só no perfil `dev`).
 - Controllers com `@Tag`, endpoints com `@Operation`.
+
+## 13. V2 / fase 2 — rascunho de transação por áudio
+
+Atualização fase 3: header `Idempotency-Key` obrigatório; plano efetivo PRO verificado no banco antes do decoder/provedor. Usuário do login e `/users/me` incluem `plan` (BASIC/PRO calculado) e `proExpiresAt` (Instant UTC nullable). Não alterar plano por payload nem JWT. API continua dev/opt-in.
+
+Erros adicionais ProblemDetail: `403 PRO_REQUIRED`; `400 INVALID_IDEMPOTENCY_KEY`; `409 AI_REQUEST_IN_PROGRESS`, `AI_REQUEST_ALREADY_USED`, `IDEMPOTENCY_CONFLICT`; `429 USER_AI_QUOTA_EXCEEDED` e `GLOBAL_AI_CAPACITY_EXCEEDED`, com `Retry-After` em segundos quando disponível. Indisponibilidade/cooldown do provedor mantém 503; lease expirado usa `503 AI_REQUEST_EXPIRED`. Repetições não devolvem rascunho salvo: nenhuma resposta financeira é persistida. Nova tentativa intencional exige nova chave.
+
+Contrato alinhado com Gabriel em 14/11/2026. Somente perfil `dev`, sem perfil `prod`, com `FIN_AI_ENABLED=true`; desativado por padrão. Não liberar a usuários antes de PRO/cotas da fase 3. Exige Bearer JWT; `userId` vem exclusivamente do subject.
+
+`POST /api/v1/ai/transaction-drafts`: bytes originais do áudio no corpo, sem multipart, JSON, URL de arquivo ou identificador de usuário. Content-Type: `audio/webm`, `audio/mp4`, `audio/wav` ou `application/octet-stream`. Contêiner detectado/validado pelo conteúdo. Até 2 MiB e duração positiva até 30 s. WebM/Opus e MP4/AAC exigem `FIN_FFPROBE_PATH` absoluto; WAV aceita PCM assinado. Sem gravação temporária de áudio pela feature.
+
+Resposta `200` (campos não resolvidos continuam null):
+
+```json
+{
+  "type": "EXPENSE", "amount": 45.00, "date": "2026-11-14",
+  "categoryId": 3, "accountId": 1, "creditCardId": null, "installments": 1,
+  "missingFields": [], "requiresConfirmation": true
+}
+```
+
+`amount` é o total da compra. `missingFields` usa `type`, `amount`, `date`, `categoryId`, `paymentSource`, `installments`. Sem transação reconhecida ou com mais de uma, responder `422`, sem escolher/somar eventos. Descrição/notas podem ser preenchidas pelo usuário na revisão; não há transcrição, score de confiança ou conteúdo bruto do provedor na resposta. Nenhum rascunho é persistido e nenhum token/ID de confirmação é criado.
+
+Após revisar e preencher as pendências, o frontend envia `TransactionRequest` ao `POST /api/v1/transactions` existente; cria somente após essa ação. O endpoint de criação revalida propriedade, estado e regras de todos os recursos e devolve um objeto (a primeira parcela quando parcelado), conforme comportamento atual preservado por decisão de Gabriel.
+
+Erros `ProblemDetail`, com propriedade `code`: `400 INVALID_AUDIO_REQUEST` para leitura inválida; `413 AUDIO_TOO_LARGE`; `415` para Content-Type não aceito; `422 INVALID_AUDIO`, `MULTIPLE_TRANSACTIONS`, `UNCLEAR_AUDIO` ou `CATALOG_TOO_LARGE`; `404 RESOURCE_NOT_FOUND` se recurso selecionado deixou de pertencer ao usuário/estar ativo; `502 INVALID_AI_RESPONSE` para saída inválida/referência fora do catálogo/combinação financeira inválida; `503 AI_UNAVAILABLE`, `AI_RATE_LIMITED` ou `AUDIO_VALIDATION_UNAVAILABLE`. 401 sem JWT; rota ausente quando desativada. `415` usa o tratamento HTTP comum, sem código específico da feature.
+
+Somente nomes, tipo de categoria e referências temporárias do catálogo do próprio usuário são enviados ao extrator, com até 100 categorias, 100 contas e 100 cartões ativos (catálogo maior é recusado integralmente, sem truncamento silencioso). Sem IDs reais, histórico ou saldos no contexto. A chamada não mantém transação de banco aberta; recursos selecionados são consultados novamente após a extração. Conta com parcelas ausentes usa 1; cartão/origem pendente mantém null. Datas futuras da compra limitadas a um ano, segundo o Clock injetado em America/Sao_Paulo. Sempre revalidar na confirmação.

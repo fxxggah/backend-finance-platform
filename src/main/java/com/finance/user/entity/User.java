@@ -37,6 +37,9 @@ public class User extends BaseEntity {
     @Column(nullable = false)
     private boolean active = true;
 
+    @Column(name = "pro_expires_at")
+    private java.time.Instant proExpiresAt;
+
     public User(String googleId, String email, String name, String pictureUrl) {
         this.googleId = googleId;
         this.email = email;

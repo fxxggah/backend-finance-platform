@@ -14,6 +14,9 @@ public interface AccountRepository extends JpaRepository<Account, Long> {
 
     List<Account> findAllByUserIdAndArchivedFalse(Long userId);
 
+    org.springframework.data.domain.Page<Account> findAllByUserIdAndArchivedFalse(Long userId,
+            org.springframework.data.domain.Pageable pageable);
+
     boolean existsByIdAndUserId(Long id, Long userId);
 
     boolean existsByUserIdAndNameIgnoreCase(Long userId, String name);

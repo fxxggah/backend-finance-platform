@@ -7,6 +7,11 @@ spring:
 server:
   port: ${PORT:8080}
 
+app:
+  ai:
+    enabled: ${FIN_AI_ENABLED:false}
+    ffprobe-path: ${FIN_FFPROBE_PATH:}
+
 management:
   endpoints:
     web:

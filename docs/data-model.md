@@ -6,6 +6,14 @@ Fonte da verdade do schema do v1. Se o schema mudar, **crie uma migration nova**
 
 ## 1. Convenções
 
+### V2 / fase 3 — migration V2
+
+- `users.pro_expires_at DATETIME(6) NULL`: validade UTC do acesso PRO manual. Plano efetivo é calculado, não coluna/claim.
+- `ai_quota_guards`: singleton `id BIGINT PK = 1`, `blocked_until DATETIME(6) NULL`, auditoria BaseEntity. Linha global de sincronização, sem user_id; lock por transação curta.
+- `ai_usage_requests`: `id BIGINT AUTO_INCREMENT PK`, `user_id BIGINT NOT NULL FK users ON DELETE CASCADE`, `key_hash CHAR(64) NOT NULL`, `audio_hash CHAR(64) NOT NULL`, `status VARCHAR(16) NOT NULL` (PROCESSING/SUCCEEDED/FAILED), `reserved_at DATETIME(6) NOT NULL`, `lease_until DATETIME(6) NOT NULL`, `success_day DATE NULL`, auditoria. UNIQUE(user_id,key_hash); índices(user_id,status,success_day) e(user_id,status,lease_until). Hashes SHA-256; não armazenar chave bruta, áudio, prompt, contexto ou rascunho.
+- `ai_global_attempts`: `id BIGINT AUTO_INCREMENT PK`, `reserved_at DATETIME(6) NOT NULL`, auditoria; índice(reserved_at). Ledger global de capacidade, sem vínculo ao usuário/conteúdo. Permanece após exclusão do usuário para não devolver tentativas ao orçamento. Contagens são agregações no banco; sem lista de entidades para computar cota.
+- CHECK de status e dia de sucesso coerente; criação de usuário anterior segue BASIC por validade null. Sem schema de pagamentos/assinaturas nesta fase. Não editar V1 aplicada.
+
 | Item | Regra |
 |---|---|
 | PK | `BIGINT AUTO_INCREMENT` (`@GeneratedValue(strategy = IDENTITY)`) |

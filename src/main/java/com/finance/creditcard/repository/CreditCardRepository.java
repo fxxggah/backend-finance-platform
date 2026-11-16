@@ -14,6 +14,9 @@ public interface CreditCardRepository extends JpaRepository<CreditCard, Long> {
 
     List<CreditCard> findAllByUserIdAndArchivedFalse(Long userId);
 
+    org.springframework.data.domain.Page<CreditCard> findAllByUserIdAndArchivedFalse(Long userId,
+            org.springframework.data.domain.Pageable pageable);
+
     boolean existsByIdAndUserId(Long id, Long userId);
 
     boolean existsByUserIdAndNameIgnoreCase(Long userId, String name);

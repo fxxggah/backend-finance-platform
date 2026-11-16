@@ -30,12 +30,11 @@
 		<java.version>25</java.version>
 	</properties>
 	<dependencies>
-		<!-- V2 fase 1: prova manual; não integra o artefato de produção. -->
+		<!-- V2: extrator de áudio; execução restrita a dev e opt-in na fase 2. -->
 		<dependency>
 			<groupId>com.google.genai</groupId>
 			<artifactId>google-genai</artifactId>
 			<version>1.79.0</version>
-			<scope>test</scope>
 		</dependency>
 		<dependency>
 			<groupId>org.springframework.boot</groupId>

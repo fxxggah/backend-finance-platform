@@ -17,6 +17,9 @@ public interface CategoryRepository extends JpaRepository<Category, Long> {
 
     List<Category> findAllByUserIdAndDeletedFalse(Long userId);
 
+    org.springframework.data.domain.Page<Category> findAllByUserIdAndDeletedFalse(Long userId,
+            org.springframework.data.domain.Pageable pageable);
+
     List<Category> findAllByUserIdAndTypeAndDeletedFalse(Long userId, TransactionType type);
 
     boolean existsByIdAndUserId(Long id, Long userId);

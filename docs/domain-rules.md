@@ -241,6 +241,22 @@ Sempre incluir o aviso: *"Simulação ilustrativa, não é recomendação financ
 
 ## 11. V2 — limite de áudio confirmado em 14/11/2026
 
-- Uma gravação deve ter duração positiva e **no máximo 30 segundos**, validada no backend antes de enviar ao provedor. Na fase 1, isso é aplicado somente na prova técnica manual; o endpoint será criado nas fases seguintes.
+- Uma gravação deve ter duração positiva e **no máximo 30 segundos**, validada no backend antes de enviar ao provedor. Implementado na prova técnica da fase 1 e promovido ao endpoint de rascunho da fase 2, que segue restrito ao desenvolvimento.
 - Na PoC, arquivos têm no máximo 2 MiB; WebM/Opus e MP4/AAC exigem decodificação local. A maior duração entre amostras, intervalo dos timestamps e metadado disponível prevalece, incluindo padding. Exatamente 30 s é aceito, sem arredondar duração maior para caber no limite.
 - Duração desconhecida, erro de decodificação ou ferramenta ausente impede o envio. O relógio do navegador e a extensão do arquivo não comprovam a duração. A captura para em 29 s para deixar margem ao contêiner/codec.
+
+### V2 / fase 2 — validação do rascunho
+
+- Rascunho não é transação nem autorização para gravar. Sempre revisão/edição e confirmação explícita pela criação existente; pendências nunca recebem valores inventados.
+- Enumerar eventos: zero recusa como áudio sem transação; dois ou mais recusa como múltiplos. Nunca escolher, somar ou salvar automaticamente. A enumeração ainda depende do modelo e pode falhar; manter revisão obrigatória.
+- Catálogo limitado integralmente a 100 recursos ativos de cada tipo, somente do usuário; acima disso recusar antes da chamada. Referências fora do catálogo, dinheiro inválido, categoria incompatível, XOR inválido, receita em cartão e parcelas explícitas incompatíveis invalidam a resposta da IA. Categoria com tipo não informado pode permanecer identificada, com `type` pendente; não inferir tipo por categoria.
+- Recursos selecionados são revalidados por userId/estado depois da chamada, sem transação de banco aberta durante a rede. Recurso indisponível resulta 404. Campos conhecidos válidos são preservados; parcelas ausentes em conta usam 1, em cartão/origem não resolvida permanecem null. Compra com parcelas > 1 requer tipo EXPENSE quando informado e não pode gerar parcela de valor zero; origem/tipo ainda ausentes ficam pendentes. Datas futuras da compra até um ano via Clock; parcelas futuras são calculadas só na confirmação existente.
+- Ambiente de teste dev e opt-in, sem liberação comercial até PRO/cotas da fase 3. Nenhuma nova gravação humana enviada ao provedor nos testes desta implementação.
+
+### V2 / fase 3 — acesso e cotas
+
+- PRO exige usuário ativo e proExpiresAt estritamente posterior ao instante UTC do Clock. Igualdade já é expirado. BASIC/expirado não chega ao decoder/provedor. Validade pode ser concedida/revogada no banco pelo operador; nunca pelo usuário via payload.
+- Cota pessoal: 10 sucessos por dia em São Paulo, configurável. Pendências válidas em resposta 200 contam como sucesso; UNCLEAR, MULTIPLE, erro do provedor/validação ou lease abandonado não contam. Sucesso pertence ao dia da finalização. A gravação da finalização precede a resposta HTTP: queda de conexão não implica estorno automático.
+- Orçamento global conta cada reserva de tentativa, inclusive falhas/abandonos; 10 em janela móvel de 60 s, 400 por dia no Pacífico, configuráveis. Consumo fora desta API não é conhecido localmente; tratar 429 do provedor com cooldown e preenchimento manual. Não há garantia de capacidade do provedor ou mudança de faturamento.
+- Reservar atomicamente com limite pessoal/global e uma chamada em andamento por usuário. Não manter transação de banco durante rede. Lease expira em 120 s (configurável) e não permite sucesso tardio. Revalidar acesso ao finalizar; revogação/expiração durante a chamada impede devolver sucesso e libera o slot pessoal.
+- Chave idempotente obrigatória (8–128 caracteres ASCII de letras, números, ponto, hífen, sublinhado ou dois-pontos); cliente deve usar UUID novo por intenção de envio. Repetição da chave do mesmo usuário resulta 409, sem nova chamada; áudio diferente gera conflito específico. Chaves de usuários diferentes são independentes. Não persistir resposta para replay.

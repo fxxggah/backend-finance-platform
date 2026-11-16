@@ -8,7 +8,7 @@ Leia **no início de cada tarefa**: fase atual, dono e status. Uma feature por v
 
 - **Responsável:** Gabriel, autor e responsável pelo projeto inteiro. Frontend em outro repositório; o trabalho aqui é restrito ao backend.
 - **V1:** funcional, conforme confirmação de Gabriel. Os checklists antigos estão desatualizados e foram preservados abaixo como histórico, sem declarar verificações individuais como realizadas nesta tarefa.
-- **Fase atual:** V2 / fase 3 — PRO e cotas, em preparação desde 16/11/2026, responsável Gabriel. Fase 2 concluída em ambiente de teste em 14/11/2026. Rota de rascunho segue restrita a dev e desativada por padrão. As regras de concessão manual, contagem e limites da cota da fase 3 estão em alinhamento antes da implementação. Relatórios de captura ausentes permanecem limitação da fase 1; experiência completa nos navegadores será validada na fase 4.
+- **Fase atual:** V2 / fase 3 — PRO e cotas, concluída em ambiente de teste em 16/11/2026, responsável Gabriel. Próxima fase: 4, integração e piloto, ainda não iniciada. Rota de rascunho continua restrita a dev e desativada por padrão. Cota pessoal de sucessos e limites globais de tentativas foram implementados conforme as decisões desta fase. Relatórios de captura ausentes permanecem limitação da fase 1; experiência completa nos navegadores será validada na fase 4.
 - **Base técnica confirmada:** Java 25, Spring Boot 4.1.1, pacote `com.finance`.
 - A distribuição antiga entre Biel, Breno e João e as decisões de divisão de trabalho abaixo são históricas; o responsável atual por todas as fases é Gabriel.
 
@@ -46,7 +46,7 @@ Todas as fases têm **Gabriel** como responsável. Executar uma tarefa por vez.
 | 0 | Documentação e base | Decisões registradas, responsável/status corrigidos, compilação e testes verificados | [x] |
 | 1 | Prova técnica gratuita | SDK/modelo/formatos validados com dados fictícios; precisão, latência e consumo medidos | [x] |
 | 2 | Áudio para rascunho | Extração, validação e confirmação verificadas em ambiente de teste; sem escrita financeira pelo modelo | [x] |
-| 3 | PRO e cotas | Acesso manual com validade, bloqueio de BASIC antes da chamada e cotas resistentes à concorrência | [~] |
+| 3 | PRO e cotas | Acesso manual com validade, bloqueio de BASIC antes da chamada e cotas resistentes à concorrência | [x] |
 | 4 | Integração e piloto | Fluxo completo nos navegadores, revisão obrigatória, fallback manual e controle de liberação | [ ] |
 | 5 | Pagamento | Checkout hospedado e webhook com assinatura, idempotência e tratamento de eventos fora de ordem | [ ] |
 
@@ -177,11 +177,44 @@ Na fase 4, usar novos pares áudio/JSON para conferir nomes, bytes, MIME, navega
 
 Checklist:
 
-- [ ] Migration de PRO e reservas/controle global; atualizar modelo de dados.
-- [ ] Expor plano efetivo e validade em `/users/me`/usuário do login; verificar validade por Clock injetado.
-- [ ] Guardar reservas, impedir repetição/concorrência e aplicar cota pessoal de sucessos e orçamento global de tentativas.
-- [ ] Integrar a proteção ao rascunho e documentar concessão/revogação manual.
-- [ ] Testar expiração, falhas, concorrência real, fusos, exclusão de conta e isolamento; validar compilação/regressão/OpenAPI.
+- [x] Migration de PRO e reservas/controle global; atualizar modelo de dados.
+- [x] Expor plano efetivo e validade em `/users/me`/usuário do login; verificar validade por Clock injetado.
+- [x] Guardar reservas, impedir repetição/concorrência e aplicar cota pessoal de sucessos e orçamento global de tentativas.
+- [x] Integrar a proteção ao rascunho e documentar concessão/revogação manual.
+- [x] Testar expiração, falhas, concorrência real, fusos, exclusão de conta e isolamento; validar compilação/regressão/OpenAPI.
+
+Validação final em 16/11/2026: `mvnw.cmd -U clean compile` passou com JDK 25; regressão completa **974 testes, zero falhas, zero erros e zero ignorados** (18 novos em relação à fase 2). Testes em saída isolada `build/ai-poc-verification`, pelo mesmo POM temporário com apenas build.directory alterado, removido no fim. `git diff --check` passou. Nenhuma chamada ao Google, concessão de PRO em banco real ou habilitação de cobrança.
+
+Os 12 testes novos de cotas usam MySQL real/Testcontainers: concorrência de 12 requisições, duas instâncias do serviço no mesmo banco, última vaga pessoal, limite global, idempotência/isolamento, falhas sem consumo pessoal, expiração/revogação, lease, viradas de dia de São Paulo/Pacífico, cooldown e exclusão sem devolver orçamento global. Os testes HTTP cobrem BASIC antes do provedor, chave obrigatória/repetida, plano efetivo, 429/Retry-After, CORS e contrato OpenAPI. Migration V2 aplicada e `ddl-auto=validate` aprovado nos containers. Não foi necessário alterar migration V1.
+
+A primeira tentativa focalizada encontrou Docker desligado; foi iniciada a ferramenta e os testes passaram. Na primeira regressão completa, apenas o novo teste CORS falhou por usar a mesma origem do backend, na qual o navegador não precisa de headers CORS; corrigido o teste para frontend em localhost:3000 e repetida a suíte inteira, aprovada. Os limites usam uma única base de cotas para as instâncias do backend; outros bancos/consumidores do projeto não compartilham esses contadores.
+
+Definição de pronto: compilação/testes, regras e isolamento cobertos; nova migration e validação do schema aprovadas; API/OpenAPI/arquitetura/modelo de dados e operação manual documentados. Integração com frontend, piloto real nos navegadores e decisão de liberação permanecem fase 4; cobrança permanece fase 5.
+
+### Fase 3 — operação manual e integração
+
+Todas as contas existentes começam BASIC (pro_expires_at null). Para conceder **30 dias de PRO** a uma conta de teste, o operador executa no banco de desenvolvimento, substituindo `123` pelo ID conferido em `/users/me`:
+
+```sql
+SELECT id, active, pro_expires_at FROM users WHERE id = 123;
+UPDATE users
+SET pro_expires_at = DATE_ADD(UTC_TIMESTAMP(6), INTERVAL 30 DAY), updated_at = UTC_TIMESTAMP(6)
+WHERE id = 123 AND active = b'1';
+SELECT ROW_COUNT() AS changed_users;
+SELECT id, pro_expires_at FROM users WHERE id = 123;
+```
+
+Para revogar, o operador usa:
+
+```sql
+UPDATE users SET pro_expires_at = NULL, updated_at = UTC_TIMESTAMP(6) WHERE id = 123;
+```
+
+Esses comandos não são executados pela implementação nem criam endpoint administrativo. Uma extensão de validade exige nova concessão explícita; o exemplo conta 30 dias a partir do instante da execução. Consultar novamente `/users/me` reflete BASIC/PRO, inclusive expiração, sem novo login. O usuário do login também inclui esses campos. Isso não implementa cobrança ou renovação automática.
+
+Ao enviar áudio, acrescentar `--header 'Idempotency-Key: <UUID_NOVO>'` ao exemplo da fase 2. Manter a mesma chave apenas em repetições do mesmo envio; receber 409 não devolve resposta armazenada e não chama novamente a IA. Para tentar novamente por intenção do usuário, gerar outra chave. O frontend deve tratar 403 (PRO), 409 (repetição/em andamento), 429 (cota/capacidade) e 503 (indisponibilidade/cooldown), usando `Retry-After` quando presente. CORS aceita a nova chave e expõe Retry-After.
+
+Configuração técnica por ambiente: `FIN_AI_USER_SUCCESSES_PER_DAY=10`, `FIN_AI_GLOBAL_ATTEMPTS_PER_MINUTE=10`, `FIN_AI_GLOBAL_ATTEMPTS_PER_DAY=400`, `FIN_AI_LEASE_SECONDS=120` e `FIN_AI_PROVIDER_COOLDOWN_SECONDS=60`. A flag e os perfis da fase 2 permanecem; não habilitar produção automaticamente. Os limites globais locais contam **tentativas** e são independentes da cota pessoal de **sucessos**. Limites de tokens e outros consumidores do projeto ainda são aplicados pelo provedor; 10/400 são uma margem técnica para o piloto, não promessa de disponibilidade nem garantia de custo por configuração de faturamento.
 
 ### Fase 2 — implementação e uso local
 
@@ -207,7 +240,8 @@ $env:FIN_FFPROBE_PATH = (Resolve-Path 'build/ai-poc-media/ffmpeg-9.0.2/ffmpeg-9.
 Com o backend iniciado, usar o Bearer JWT de login do FIN (não a chave Google) no Swagger em `http://localhost:8080/swagger-ui.html` ou, em outro terminal:
 
 ```powershell
-curl.exe --request POST 'http://localhost:8080/api/v1/ai/transaction-drafts' --header 'Authorization: Bearer <JWT_DO_FIN>' --header 'Content-Type: audio/webm' --data-binary '@C:\caminho\audio-ficticio.webm'
+$voiceRequestKey = [guid]::NewGuid().ToString()
+curl.exe --request POST 'http://localhost:8080/api/v1/ai/transaction-drafts' --header 'Authorization: Bearer <JWT_DO_FIN>' --header "Idempotency-Key: $voiceRequestKey" --header 'Content-Type: audio/webm' --data-binary '@C:\caminho\audio-ficticio.webm'
 ```
 
 No MP4 usar `audio/mp4`; no WAV usar `audio/wav`. Os bytes originais são mantidos e a extensão não determina o codec. Preencher `missingFields` e revisar todos os campos antes de enviar `TransactionRequest` ao `POST /transactions`. `requiresConfirmation=true` é uma indicação de revisão, não token de autorização ou proteção contra repetição. A criação existente mantém sua semântica (incluindo default de parcelas para 1 quando omitidas); a interface de revisão precisa exigir resolver as pendências antes da confirmação. Não habilitar produção ou dados reais nesta etapa.

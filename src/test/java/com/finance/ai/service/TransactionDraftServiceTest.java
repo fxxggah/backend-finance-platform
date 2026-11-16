@@ -15,10 +15,29 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 
 class TransactionDraftServiceTest {
+    @Test void basicIsBlockedBeforeDecoderCatalogAndProvider() {
+        var audio = mock(AudioValidator.class); var catalogs = mock(AiCatalogService.class);
+        var extractor = mock(TransactionExtractor.class); var quotas = mock(AiQuotaService.class);
+        doThrow(new AiException(org.springframework.http.HttpStatus.FORBIDDEN, "PRO_REQUIRED", "PRO obrigatório"))
+                .when(quotas).checkAccess(7L);
+        var service = new TransactionDraftService(audio, catalogs, extractor, new ExtractionParser(), Clock.systemUTC(), quotas);
+        assertThatThrownBy(() -> service.create(7L, new byte[1], "test-key-0001")).isInstanceOf(AiException.class);
+        verifyNoInteractions(audio, catalogs, extractor);
+    }
+
+    @Test void invalidAudioNeverReservesQuota() {
+        var audio = mock(AudioValidator.class); var catalogs = mock(AiCatalogService.class);
+        var extractor = mock(TransactionExtractor.class); var quotas = mock(AiQuotaService.class);
+        when(audio.validate(any())).thenThrow(new AiException(org.springframework.http.HttpStatus.UNPROCESSABLE_CONTENT, "INVALID_AUDIO", "Áudio inválido"));
+        var service = new TransactionDraftService(audio, catalogs, extractor, new ExtractionParser(), Clock.systemUTC(), quotas);
+        assertThatThrownBy(() -> service.create(7L, new byte[1], "test-key-0001")).isInstanceOf(AiException.class);
+        verify(quotas, never()).reserve(any(), any(), any()); verifyNoInteractions(catalogs, extractor);
+    }
     @Test void usesInjectedClockInSaoPauloAndNormalizesOnlyAfterResourceValidation() {
         var audio = mock(AudioValidator.class);
         var catalogs = mock(AiCatalogService.class);
         var extractor = mock(TransactionExtractor.class);
+        var quotas = mock(AiQuotaService.class);
         var catalog = new ExtractionCatalog(Map.of(), Map.of(), Map.of());
         byte[] bytes = new byte[1];
         var input = new AudioInput(bytes, "audio/wav", Duration.ofSeconds(1));
@@ -30,8 +49,8 @@ class TransactionDraftServiceTest {
                 "categoryRef":"c","accountRef":"a","creditCardRef":null}]}
                 """);
         var service = new TransactionDraftService(audio, catalogs, extractor, new ExtractionParser(),
-                Clock.fixed(Instant.parse("2026-11-14T01:00:00Z"), ZoneOffset.UTC));
-        var result = service.create(7L, bytes);
+                Clock.fixed(Instant.parse("2026-11-14T01:00:00Z"), ZoneOffset.UTC), quotas);
+        var result = service.create(7L, bytes, "test-key-0001");
         assertThat(result.installments()).isEqualTo(1);
         assertThat(result.missingFields()).isEmpty();
         assertThat(result.requiresConfirmation()).isTrue();
@@ -45,6 +64,7 @@ class TransactionDraftServiceTest {
     @Test void refusesFutureDateBeyondOneYearBeforeResolvingResources() {
         var audio = mock(AudioValidator.class); var catalogs = mock(AiCatalogService.class);
         var extractor = mock(TransactionExtractor.class);
+        var quotas = mock(AiQuotaService.class);
         var catalog = new ExtractionCatalog(Map.of(), Map.of(), Map.of());
         when(audio.validate(any())).thenReturn(new AudioInput(new byte[1], "audio/wav", Duration.ofSeconds(1)));
         when(catalogs.load(7L)).thenReturn(catalog);
@@ -53,8 +73,8 @@ class TransactionDraftServiceTest {
                 "categoryRef":null,"accountRef":null,"creditCardRef":null}]}
                 """);
         var service = new TransactionDraftService(audio, catalogs, extractor, new ExtractionParser(),
-                Clock.fixed(Instant.parse("2026-11-14T01:00:00Z"), ZoneOffset.UTC));
-        assertThatThrownBy(() -> service.create(7L, new byte[1])).isInstanceOf(AiException.class);
+                Clock.fixed(Instant.parse("2026-11-14T01:00:00Z"), ZoneOffset.UTC), quotas);
+        assertThatThrownBy(() -> service.create(7L, new byte[1], "test-key-0002")).isInstanceOf(AiException.class);
         verify(catalogs, never()).validate(any(), any(), any());
     }
 }

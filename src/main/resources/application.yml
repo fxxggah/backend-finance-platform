@@ -11,6 +11,12 @@ app:
   ai:
     enabled: ${FIN_AI_ENABLED:false}
     ffprobe-path: ${FIN_FFPROBE_PATH:}
+    quota:
+      user-successes-per-day: ${FIN_AI_USER_SUCCESSES_PER_DAY:10}
+      global-attempts-per-minute: ${FIN_AI_GLOBAL_ATTEMPTS_PER_MINUTE:10}
+      global-attempts-per-day: ${FIN_AI_GLOBAL_ATTEMPTS_PER_DAY:400}
+      lease-seconds: ${FIN_AI_LEASE_SECONDS:120}
+      provider-cooldown-seconds: ${FIN_AI_PROVIDER_COOLDOWN_SECONDS:60}
 
 management:
   endpoints:

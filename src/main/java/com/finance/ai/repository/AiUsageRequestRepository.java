@@ -14,7 +14,8 @@ public interface AiUsageRequestRepository extends JpaRepository<AiUsageRequest, 
     boolean existsByUserIdAndStatusAndLeaseUntilGreaterThan(Long userId, AiUsageRequest.Status status, Instant now);
 
     @Modifying
-    @Query("update AiUsageRequest request set request.status = com.finance.ai.entity.AiUsageRequest$Status.FAILED, request.updatedAt = :now "
-            + "where request.user.id = :userId and request.status = com.finance.ai.entity.AiUsageRequest$Status.PROCESSING and request.leaseUntil <= :now")
-    int expire(@Param("userId") Long userId, @Param("now") Instant now);
+    @Query("update AiUsageRequest request set request.status = :failed, request.updatedAt = :now "
+            + "where request.user.id = :userId and request.status = :processing and request.leaseUntil <= :now")
+    int expire(@Param("userId") Long userId, @Param("now") Instant now,
+               @Param("processing") AiUsageRequest.Status processing, @Param("failed") AiUsageRequest.Status failed);
 }

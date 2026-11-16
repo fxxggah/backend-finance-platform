@@ -32,12 +32,13 @@ public class UserService {
     private final CreditCardRepository creditCardRepository;
     private final AccountRepository accountRepository;
     private final CategoryRepository categoryRepository;
+    private final java.time.Clock clock;
 
     @Transactional(readOnly = true)
     public UserResponse get(Long userId) {
         return userRepository.findById(userId)
                 .filter(User::isActive)
-                .map(UserMapper::toResponse)
+                .map(user -> UserMapper.toResponse(user, clock))
                 .orElseThrow(() -> new ResourceNotFoundException("Usuário não encontrado"));
     }
 

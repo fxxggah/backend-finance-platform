@@ -42,6 +42,7 @@ public class AuthService {
     private final CategoryRepository categoryRepository;
     private final GoogleTokenVerifier googleTokenVerifier;
     private final JwtService jwtService;
+    private final java.time.Clock clock;
 
     @Value("${app.jwt.refresh-token-expiration}")
     private long refreshTokenExpiration;
@@ -65,7 +66,7 @@ public class AuthService {
         String rawRefresh = generateRawToken();
         saveRefreshToken(user, rawRefresh);
 
-        UserResponse userResponse = UserMapper.toResponse(user);
+        UserResponse userResponse = UserMapper.toResponse(user, clock);
         return new AuthResponse(
                 jwtService.generateAccessToken(user.getId()),
                 rawRefresh,

@@ -8,7 +8,7 @@ public final class UserMapper {
     private UserMapper() {
     }
 
-    public static UserResponse toResponse(User user) {
+    public static UserResponse toResponse(User user, java.time.Clock clock) {
         if (user == null) {
             return null;
         }
@@ -16,6 +16,8 @@ public final class UserMapper {
                 user.getId(),
                 user.getName(),
                 user.getEmail(),
-                user.getPictureUrl());
+                user.getPictureUrl(),
+                user.isActive() && user.getProExpiresAt() != null && user.getProExpiresAt().isAfter(clock.instant()) ? "PRO" : "BASIC",
+                user.getProExpiresAt());
     }
 }

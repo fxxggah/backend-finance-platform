@@ -53,10 +53,11 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 @SpringBootTest(properties = {"spring.config.name=ai-phase2-test", "app.ai.enabled=true",
+        "app.ai.quota.global-attempts-per-minute=1000", "app.ai.quota.global-attempts-per-day=10000",
         "app.jwt.secret=phase-two-tests-only-secret-at-least-32-bytes", "app.jwt.access-token-expiration=900000",
         "app.jwt.refresh-token-expiration=604800000", "spring.jpa.hibernate.ddl-auto=validate",
         "spring.jpa.properties.hibernate.jdbc.time_zone=UTC",
-        "app.google.client-id=phase-two-test-client", "app.cors.origins=http://localhost",
+        "app.google.client-id=phase-two-test-client", "app.cors.origins=http://localhost:3000",
         "spring.jpa.show-sql=false", "logging.level.org.springframework=WARN", "logging.level.com.finance=INFO"})
 @AutoConfigureMockMvc
 @ActiveProfiles("dev")
@@ -76,6 +77,8 @@ class TransactionDraftIntegrationTest {
     @Autowired CategoryRepository categories;
     @Autowired CreditCardRepository cards;
     @Autowired TransactionRepository transactions;
+    @Autowired com.finance.ai.repository.AiQuotaGuardRepository quotaGuards;
+    @Autowired com.finance.ai.config.AiQuotaProperties quotaLimits;
     @MockitoBean TransactionExtractor extractor;
     private User owner, other;
     private Account account, otherAccount;
@@ -86,6 +89,8 @@ class TransactionDraftIntegrationTest {
     @BeforeEach void setup() throws Exception {
         String suffix = UUID.randomUUID().toString();
         owner = users.saveAndFlush(new User("owner-" + suffix, suffix + "@example.com", "Owner", null));
+        owner.setProExpiresAt(Instant.parse("2027-01-01T00:00:00Z")); owner = users.saveAndFlush(owner);
+        var guard = quotaGuards.findById(1L).orElseThrow(); guard.setBlockedUntil(null); quotaGuards.saveAndFlush(guard);
         other = users.saveAndFlush(new User("other-" + suffix, "other-" + suffix + "@example.com", "Other", null));
         account = accounts.saveAndFlush(new Account(owner, "Carteira", AccountType.values()[0], BigDecimal.ZERO, null, null));
         otherAccount = accounts.saveAndFlush(new Account(other, "Conta privada", AccountType.values()[0], BigDecimal.ZERO, null, null));
@@ -121,7 +126,7 @@ class TransactionDraftIntegrationTest {
 
     private org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder request() {
         return post(URL).with(jwt().jwt(value -> value.subject(owner.getId().toString())))
-                .contentType("audio/wav").content(audio);
+                .header("Idempotency-Key", UUID.randomUUID().toString()).contentType("audio/wav").content(audio);
     }
 
     @Test void isolatesContextIgnoresUserIdParameterAndDoesNotWriteUntilExplicitConfirmation() throws Exception {
@@ -232,6 +237,50 @@ class TransactionDraftIntegrationTest {
                 .andExpect(jsonPath("$.paths['/api/v1/ai/transaction-drafts'].post.requestBody.content['audio/webm']").exists())
                 .andExpect(jsonPath("$.paths['/api/v1/ai/transaction-drafts'].post.responses['413']").exists())
                 .andExpect(jsonPath("$.paths['/api/v1/ai/transaction-drafts'].post.responses['503']").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/ai/transaction-drafts'].post.responses['429']").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/ai/transaction-drafts'].post.parameters[?(@.name == 'Idempotency-Key')].required")
+                        .value(org.hamcrest.Matchers.contains(true)))
                 .andExpect(jsonPath("$.components.schemas.TransactionDraftResponse.properties.requiresConfirmation").exists());
+    }
+
+    @Test void basicAndMissingKeyAreRejectedAndProfileExposesEffectivePlan() throws Exception {
+        mvc.perform(post(URL).with(jwt().jwt(value -> value.subject(other.getId().toString())))
+                .header("Idempotency-Key", UUID.randomUUID().toString()).contentType("audio/wav").content(audio))
+                .andExpect(status().isForbidden()).andExpect(jsonPath("$.code").value("PRO_REQUIRED"));
+        mvc.perform(post(URL).with(jwt().jwt(value -> value.subject(owner.getId().toString())))
+                .contentType("audio/wav").content(audio))
+                .andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value("INVALID_IDEMPOTENCY_KEY"));
+        mvc.perform(get("/api/v1/users/me").with(jwt().jwt(value -> value.subject(owner.getId().toString()))))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.plan").value("PRO"))
+                .andExpect(jsonPath("$.proExpiresAt").exists());
+        verifyNoInteractions(extractor);
+    }
+
+    @Test void repeatedSuccessfulRequestDoesNotCallProviderTwice() throws Exception {
+        String key = UUID.randomUUID().toString();
+        var first = post(URL).with(jwt().jwt(value -> value.subject(owner.getId().toString())))
+                .header("Idempotency-Key", key).contentType("audio/wav").content(audio);
+        mvc.perform(first).andExpect(status().isOk());
+        mvc.perform(post(URL).with(jwt().jwt(value -> value.subject(owner.getId().toString())))
+                .header("Idempotency-Key", key).contentType("audio/wav").content(audio))
+                .andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("AI_REQUEST_ALREADY_USED"));
+        verify(extractor, times(1)).extract(any(), any(), any());
+    }
+
+    @Test void personalLimitReturnsRetryAfterAndCorsSupportsIdempotencyHeader() throws Exception {
+        int original = quotaLimits.getUserSuccessesPerDay(); quotaLimits.setUserSuccessesPerDay(1);
+        try {
+            mvc.perform(request().header("Origin", "http://localhost:3000")).andExpect(status().isOk())
+                    .andExpect(header().string("Access-Control-Expose-Headers", "Retry-After"));
+            mvc.perform(request()).andExpect(status().isTooManyRequests())
+                    .andExpect(jsonPath("$.code").value("USER_AI_QUOTA_EXCEEDED"))
+                    .andExpect(header().string("Retry-After", org.hamcrest.Matchers.matchesPattern("[0-9]+")));
+            verify(extractor, times(1)).extract(any(), any(), any());
+            mvc.perform(options(URL).header("Origin", "http://localhost:3000")
+                    .header("Access-Control-Request-Method", "POST")
+                    .header("Access-Control-Request-Headers", "idempotency-key,content-type,authorization"))
+                    .andExpect(status().isOk()).andExpect(header().string("Access-Control-Allow-Headers",
+                            org.hamcrest.Matchers.containsString("idempotency-key")));
+        } finally { quotaLimits.setUserSuccessesPerDay(original); }
     }
 }

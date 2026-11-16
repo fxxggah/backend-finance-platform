@@ -10,12 +10,26 @@ import static org.assertj.core.api.Assertions.assertThat;
 class UserMapperTest {
 
     @Test
+    void proExpiresExactlyAtClockInstantAndInactiveUserIsNeverPro() {
+        var instant = java.time.Instant.parse("2026-11-16T12:00:00Z");
+        var clock = java.time.Clock.fixed(instant, java.time.ZoneOffset.UTC);
+        User user = new User("synthetic", "synthetic@example.com", "Synthetic", null);
+        assertThat(UserMapper.toResponse(user, clock).plan()).isEqualTo("BASIC");
+        user.setProExpiresAt(instant.plusSeconds(1));
+        assertThat(UserMapper.toResponse(user, clock).plan()).isEqualTo("PRO");
+        user.setProExpiresAt(instant);
+        assertThat(UserMapper.toResponse(user, clock).plan()).isEqualTo("BASIC");
+        user.setProExpiresAt(instant.plusSeconds(1)); user.setActive(false);
+        assertThat(UserMapper.toResponse(user, clock).plan()).isEqualTo("BASIC");
+    }
+
+    @Test
     @DisplayName("toResponse: deve mapear todos os campos do usuário")
     void toResponse_shouldMapAllFields() {
         User user = new User("google-123", "joao@example.com", "João Silva", "https://img.example.com/joao.png");
         user.setId(1L);
 
-        UserResponse response = UserMapper.toResponse(user);
+        UserResponse response = UserMapper.toResponse(user, java.time.Clock.systemUTC());
 
         assertThat(response).isNotNull();
         assertThat(response.id()).isEqualTo(1L);
@@ -30,7 +44,7 @@ class UserMapperTest {
         User user = new User("google-123", "joao@example.com", "João Silva", null);
         user.setId(2L);
 
-        UserResponse response = UserMapper.toResponse(user);
+        UserResponse response = UserMapper.toResponse(user, java.time.Clock.systemUTC());
 
         assertThat(response).isNotNull();
         assertThat(response.id()).isEqualTo(2L);
@@ -40,6 +54,6 @@ class UserMapperTest {
     @Test
     @DisplayName("toResponse: deve retornar null quando o usuário for null")
     void toResponse_shouldReturnNull_whenUserIsNull() {
-        assertThat(UserMapper.toResponse(null)).isNull();
+        assertThat(UserMapper.toResponse(null, java.time.Clock.systemUTC())).isNull();
     }
 }

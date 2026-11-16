@@ -10,6 +10,7 @@ import com.finance.ai.extractor.GeminiTransactionExtractor;
 import com.finance.ai.extractor.TransactionExtractor;
 import com.finance.ai.service.AiCatalogService;
 import com.finance.ai.service.TransactionDraftService;
+import com.finance.ai.service.AiQuotaService;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
@@ -31,7 +32,7 @@ public class AiConfiguration {
     }
     @Bean public ExtractionParser extractionParser() { return new ExtractionParser(); }
     @Bean public TransactionDraftService transactionDraftService(AudioValidator audio, AiCatalogService catalogs,
-            TransactionExtractor extractor, ExtractionParser parser, Clock clock) {
-        return new TransactionDraftService(audio, catalogs, extractor, parser, clock);
+            TransactionExtractor extractor, ExtractionParser parser, Clock clock, AiQuotaService quotas) {
+        return new TransactionDraftService(audio, catalogs, extractor, parser, clock, quotas);
     }
 }

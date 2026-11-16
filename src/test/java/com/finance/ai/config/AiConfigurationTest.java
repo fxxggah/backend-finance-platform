@@ -19,6 +19,7 @@ class AiConfigurationTest {
                 .withBean(AccountRepository.class, () -> mock(AccountRepository.class))
                 .withBean(CategoryRepository.class, () -> mock(CategoryRepository.class))
                 .withBean(CreditCardRepository.class, () -> mock(CreditCardRepository.class))
+                .withBean(com.finance.ai.service.AiQuotaService.class, () -> mock(com.finance.ai.service.AiQuotaService.class))
                 .withBean(CurrentUser.class, CurrentUser::new).withBean(Clock.class, Clock::systemUTC);
     }
 

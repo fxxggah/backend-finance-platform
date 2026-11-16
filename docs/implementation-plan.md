@@ -8,7 +8,7 @@ Leia **no início de cada tarefa**: fase atual, dono e status. Uma feature por v
 
 - **Responsável:** Gabriel, autor e responsável pelo projeto inteiro. Frontend em outro repositório; o trabalho aqui é restrito ao backend.
 - **V1:** funcional, conforme confirmação de Gabriel. Os checklists antigos estão desatualizados e foram preservados abaixo como histórico, sem declarar verificações individuais como realizadas nesta tarefa.
-- **Fase atual:** V2 / fase 3 — PRO e cotas, concluída em ambiente de teste em 16/11/2026, responsável Gabriel. Próxima fase: 4, integração e piloto, ainda não iniciada. Rota de rascunho continua restrita a dev e desativada por padrão. Cota pessoal de sucessos e limites globais de tentativas foram implementados conforme as decisões desta fase. Relatórios de captura ausentes permanecem limitação da fase 1; experiência completa nos navegadores será validada na fase 4.
+- **Fase atual:** V2 / fase 4 — integração implementada nos dois repositórios e verificada automaticamente em 16/11/2026; piloto real ainda em andamento, responsável Gabriel. Gabriel autorizou alterações também em `../fin-frontend`. Build final com voz desligada por padrão; sem publicação em produção. Faltam os resultados do Safari/iPhone e do piloto com provedor real usando dados fictícios. Fases 1–3 concluídas; relatórios antigos ausentes não reabrem a fase 1.
 - **Base técnica confirmada:** Java 25, Spring Boot 4.1.1, pacote `com.finance`.
 - A distribuição antiga entre Biel, Breno e João e as decisões de divisão de trabalho abaixo são históricas; o responsável atual por todas as fases é Gabriel.
 
@@ -22,7 +22,7 @@ Leia **no início de cada tarefa**: fase atual, dono e status. Uma feature por v
 - **Orçamento inicial de IA: R$ 0.** Começar com Gemini Flash-Lite no nível gratuito, sem habilitar cobrança ou fallback pago. Modelo exato e capacidade do projeto serão verificados na fase 1.
 - Manter Java 25 e Spring Boot 4.1.1; nenhuma atualização de stack nesta entrega.
 - Pagamento depois da validação da experiência; acesso PRO manual para testes antes da integração de cobrança.
-- Parcelas ausentes em uma única transação: com conta válida, normalizar para 1 no backend; com cartão ou origem não resolvida, manter pendente. Decisão explícita de Gabriel em 13/11/2026; validar valores informados antes de aplicar defaults.
+- Política atual aprovada por Gabriel em 16/11/2026: descrição curta pela fala, tipo/categoria sugeridos pelo contexto, data ausente = hoje em São Paulo e parcelas ausentes = 1 inclusive no cartão. Valor ausente e origem ambígua continuam pendentes. Substitui a decisão de 13/11/2026 somente no endpoint; preservar resultados históricos da PoC. Validar campos explícitos antes de aplicar defaults.
 - A fase 0 foi exclusivamente documental. A fase 1 adiciona somente a prova manual e seus testes; endpoints públicos, persistência e assinatura ficam nas fases posteriores.
 
 ### Direção técnica proposta para validar na fase 1
@@ -47,7 +47,7 @@ Todas as fases têm **Gabriel** como responsável. Executar uma tarefa por vez.
 | 1 | Prova técnica gratuita | SDK/modelo/formatos validados com dados fictícios; precisão, latência e consumo medidos | [x] |
 | 2 | Áudio para rascunho | Extração, validação e confirmação verificadas em ambiente de teste; sem escrita financeira pelo modelo | [x] |
 | 3 | PRO e cotas | Acesso manual com validade, bloqueio de BASIC antes da chamada e cotas resistentes à concorrência | [x] |
-| 4 | Integração e piloto | Fluxo completo nos navegadores, revisão obrigatória, fallback manual e controle de liberação | [ ] |
+| 4 | Integração e piloto | Fluxo completo nos navegadores, revisão obrigatória, fallback manual e controle de liberação | [~] |
 | 5 | Pagamento | Checkout hospedado e webhook com assinatura, idempotência e tratamento de eventos fora de ordem | [ ] |
 
 O endpoint da fase 2 não deve ser exposto a usuários antes de concluir as proteções da fase 3. Mudanças de contrato devem ser documentadas e coordenadas com o frontend, em seu repositório.
@@ -190,6 +190,24 @@ Os 12 testes novos de cotas usam MySQL real/Testcontainers: concorrência de 12 
 A primeira tentativa focalizada encontrou Docker desligado; foi iniciada a ferramenta e os testes passaram. Na primeira regressão completa, apenas o novo teste CORS falhou por usar a mesma origem do backend, na qual o navegador não precisa de headers CORS; corrigido o teste para frontend em localhost:3000 e repetida a suíte inteira, aprovada. Os limites usam uma única base de cotas para as instâncias do backend; outros bancos/consumidores do projeto não compartilham esses contadores.
 
 Definição de pronto: compilação/testes, regras e isolamento cobertos; nova migration e validação do schema aprovadas; API/OpenAPI/arquitetura/modelo de dados e operação manual documentados. Integração com frontend, piloto real nos navegadores e decisão de liberação permanecem fase 4; cobrança permanece fase 5.
+
+### Fase 4 — integração nos dois repositórios
+
+- [x] Documentar fluxo e sincronizar OpenAPI/tipos do frontend com o backend atual, sem editar tipos gerados à mão.
+- [x] Integrar captura nativa WebM/MP4, prévia e envio explícito no formulário existente; até 29 s de captura/2 MiB, liberação do microfone e cancelamento no fechamento/saída.
+- [x] Adicionar flag pública de piloto no frontend, desligada por padrão, e acesso visual condicionado ao PRO do backend; continuar com bloqueio efetivo no backend.
+- [x] Aplicar rascunho ao formulário com campos desconhecidos em branco, preservar conhecidos, exigir revisão explícita e confirmar pela criação existente. Não inventar data/tipo/conta/parcelas ausentes.
+- [x] Tratar erros/permissão/indisponibilidade/cotas/repetição com alternativa manual, sem reenvio automático de IA ou criação financeira.
+- [x] Testar transporte binário, sessão, idempotência, pendências, bloqueios e confirmação; validar mobile/desktop e regressões existentes.
+- [ ] Registrar resultados e limitações do piloto real no Safari/iPhone e Chrome, sem inventar evidências nem liberar produção automaticamente.
+
+O frontend autorizado está em `C:\dev\fin-app\fin-frontend`. Os arquivos `.env*`, alterações visuais já existentes de Gabriel e o Design System serão preservados. Não adicionar bibliotecas. Gerar snapshot a partir do `/v3/api-docs` do teste de integração do backend (`-Dfin.exportOpenapi=true`), que usa banco/provedor de teste; não iniciar backend com dados reais nem enviar novos áudios humanos ao Google nesta implementação. `TransactionDraftIntegrationTest.swaggerDescribesRawAudioAndResponse` poderá exportar somente o schema para `build/phase4-openapi.json` quando essa propriedade estiver explicitamente habilitada.
+
+Resultado automatizado em 16/11/2026: frontend `pnpm build` aprovado com flag ligada para QA e desligada no build final; **23 testes de API e 4 de moeda passaram**. Chrome com microfone sintético/transporte interceptado em 390/1440 aprovou captura, parada automática, prévia, limites de fluxo, BASIC/PRO, erro/permissão tardia, cancelamento, pendências, revisão obrigatória/invalidada por edição, erro 403/409/422/429/503 e confirmação única. O build desligado foi testado sem entrada de voz ou acesso ao microfone. Regressão manual em ambas larguras aprovou parcelas/validações/foco, erros/rede, preservação, envio único e `?state=loading|empty|error`. Capturas inspecionadas em `build/phase4-ui` (ignoradas pelo Git).
+
+No backend, exportação de schema real pelo teste aprovada; `mvnw.cmd -U clean compile` e **974 testes passaram**, zero falhas/erros/ignorados, com o mesmo POM temporário/saída isolada removido no fim. API de rascunho e schema financeiro não mudaram nesta fase; não houve migration nova nem nova dependência. O frontend usa o cliente/sessão, hooks de catálogo e criação existentes; `ApiError` preserva code/Retry-After, áudio e rascunho ficam em estado transitório, e nenhum segredo Google foi levado ao client.
+
+O QA manual existente precisou de endereço interceptado configurável (`SMOKE_API_URL`) e espera limitada pelo refetch assíncrono. A regressão detectou perda de foco em erro 400 ao desabilitar os campos durante a confirmação; corrigido para preservar comportamento manual e repetido o QA com sucesso. Nenhum endpoint real, Google, faturamento, OAuth externo ou publicação pública foi acionado. Roteiro e instruções no frontend em `docs/voice-pilot.md`; o piloto físico Safari/iPhone e o provedor real continuam pendentes, sem declarar a fase inteira como concluída. A idempotência financeira do POST /transactions não foi alterada; após resposta incerta da confirmação, conferir a lista antes de uma segunda confirmação intencional.
 
 ### Fase 3 — operação manual e integração
 
@@ -542,3 +560,12 @@ Ideias que apareceram no caminho e **não** serão implementadas agora. Anote aq
 - [x] Frontend: build, 18 testes de API/mock e smoke de faturas em 390/1440 px com transporte controlado.
 - [x] Teste integrado adicional com MySQL: antecipação, recarga, saldo, limite e novas compras. Suíte de pagamentos: 15 testes, sem falhas (851 casos no conjunto das suítes).
 - [x] Validação manual com sessão Google real e publicação coordenada (backend antes do frontend).
+
+### Ajuste da fase 4 — rascunho pronto para revisão (16/11/2026)
+
+- [x] Gabriel aprovou descrição pela fala, hoje quando data ausente, inferência de tipo/categoria pelo contexto e 1 parcela por padrão, inclusive no cartão.
+- [x] Implementar no backend e integrar description ao formulário; preservar valor/origem pendentes, revisão e confirmação existentes. Contrato aditivo coordenado com o frontend: atualizar backend antes do frontend. Sem migration/dependência nova.
+- [x] Compile com JDK 25, regressão completa (979 testes, zero falhas/erros/ignorados), exportação do OpenAPI real, geração dos tipos e 23 testes de API aprovados. Builds de QA/final e Chrome 390/1440 aprovados; rascunho completo confirmado sem digitar, após revisão.
+- [ ] Gabriel repetir a frase da padaria no provedor real; piloto Safari continua pendente.
+
+Evidências do ajuste: build/voice-draft-v2-compile.log, voice-draft-v2-focused.log (48 testes), voice-draft-v2-regression.log (979), voice-draft-v2-api.log, voice-draft-v2-build.log, voice-draft-v2-build-final.log e voice-draft-v2-ui.log. Testes usam mocks/servidor local/MySQL de Testcontainers, sem nova chamada ao Gemini; não comprovam precisão do prompt v2. Sem alteração de schema, migration ou dependência. Isolamento e confirmação continuam cobertos pela integração. Build final com piloto desligado; arquivos de ambiente do usuário preservados. Não publicar nem declarar o piloto Safari concluído.

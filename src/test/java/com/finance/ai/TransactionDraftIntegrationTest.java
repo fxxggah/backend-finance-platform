@@ -116,7 +116,7 @@ class TransactionDraftIntegrationTest {
     }
 
     private String answer(ExtractionCatalog catalog, boolean useCard, Integer installments) throws Exception {
-        var event = JSON.createObjectNode().put("type", "EXPENSE").put("amount", "100.00").put("date", "2026-11-13");
+        var event = JSON.createObjectNode().put("description", "Compra na padaria").put("type", "EXPENSE").put("amount", "100.00").put("date", "2026-11-13");
         event.put("categoryRef", catalog.categories().keySet().iterator().next());
         if (useCard) { event.putNull("accountRef"); event.put("creditCardRef", catalog.creditCards().keySet().iterator().next()); }
         else { event.put("accountRef", catalog.accounts().keySet().iterator().next()); event.putNull("creditCardRef"); }
@@ -142,6 +142,7 @@ class TransactionDraftIntegrationTest {
         long before = transactions.count();
         String body = mvc.perform(request().param("userId", other.getId().toString())).andExpect(status().isOk())
                 .andExpect(jsonPath("$.accountId").value(account.getId())).andExpect(jsonPath("$.installments").value(1))
+                .andExpect(jsonPath("$.description").value("Compra na padaria"))
                 .andExpect(jsonPath("$.requiresConfirmation").value(true)).andExpect(jsonPath("$.missingFields").isEmpty())
                 .andReturn().getResponse().getContentAsString();
         assertThat(transactions.count()).isEqualTo(before);
@@ -180,10 +181,10 @@ class TransactionDraftIntegrationTest {
         assertThat(transactions.findAllByUserIdAndDeletedFalse(owner.getId(), PageRequest.of(0, 100))).isEmpty();
     }
 
-    @Test void keepsCardInstallmentsPendingAndConfirmsThreeInstallmentsAsExistingObjectResponse() throws Exception {
+    @Test void defaultsCardToOneAndAllowsReviewToThreeInstallmentsAsExistingObjectResponse() throws Exception {
         doAnswer(call -> answer(call.getArgument(1), true, null)).when(extractor).extract(any(), any(), any());
-        mvc.perform(request()).andExpect(status().isOk()).andExpect(jsonPath("$.installments").doesNotExist())
-                .andExpect(jsonPath("$.missingFields[0]").value("installments"));
+        mvc.perform(request()).andExpect(status().isOk()).andExpect(jsonPath("$.installments").value(1))
+                .andExpect(jsonPath("$.missingFields").isEmpty());
         mvc.perform(post("/api/v1/transactions").with(jwt().jwt(value -> value.subject(owner.getId().toString())))
                 .contentType(MediaType.APPLICATION_JSON).content("""
                 {"type":"EXPENSE","amount":100.00,"date":"2026-11-13","categoryId":%d,"creditCardId":%d,"installments":3}
@@ -206,11 +207,15 @@ class TransactionDraftIntegrationTest {
 
     @Test void missingFieldsAndMalformedResponsesAreControlled() throws Exception {
         doReturn("""
-                {"events":[{"type":null,"amount":"5.00","date":null,"installments":null,
+                {"events":[{"description":"Compra na padaria","type":null,"amount":"5.00","date":null,"installments":null,
                 "categoryRef":null,"accountRef":null,"creditCardRef":null}]}
                 """).when(extractor).extract(any(), any(), any());
         mvc.perform(request()).andExpect(status().isOk()).andExpect(jsonPath("$.amount").value(5.00))
-                .andExpect(jsonPath("$.missingFields.length()").value(5));
+                .andExpect(jsonPath("$.missingFields.length()").value(3))
+                .andExpect(jsonPath("$.date").value("2026-11-13"))
+                .andExpect(jsonPath("$.installments").value(1))
+                .andExpect(jsonPath("$.accountId").doesNotExist())
+                .andExpect(jsonPath("$.creditCardId").doesNotExist());
         doReturn("private-invalid-provider-output").when(extractor).extract(any(), any(), any());
         mvc.perform(request()).andExpect(status().isBadGateway()).andExpect(jsonPath("$.detail").value(
                 "A IA retornou dados inválidos. Tente novamente ou preencha manualmente."));
@@ -240,7 +245,14 @@ class TransactionDraftIntegrationTest {
                 .andExpect(jsonPath("$.paths['/api/v1/ai/transaction-drafts'].post.responses['429']").exists())
                 .andExpect(jsonPath("$.paths['/api/v1/ai/transaction-drafts'].post.parameters[?(@.name == 'Idempotency-Key')].required")
                         .value(org.hamcrest.Matchers.contains(true)))
-                .andExpect(jsonPath("$.components.schemas.TransactionDraftResponse.properties.requiresConfirmation").exists());
+                .andExpect(jsonPath("$.components.schemas.TransactionDraftResponse.properties.requiresConfirmation").exists())
+                .andExpect(jsonPath("$.components.schemas.TransactionDraftResponse.properties.description.maxLength").value(255))
+                .andDo(result -> {
+                    if (Boolean.getBoolean("fin.exportOpenapi")) {
+                        java.nio.file.Files.writeString(java.nio.file.Path.of("build/phase4-openapi.json"),
+                                result.getResponse().getContentAsString(java.nio.charset.StandardCharsets.UTF_8));
+                    }
+                });
     }
 
     @Test void basicAndMissingKeyAreRejectedAndProfileExposesEffectivePlan() throws Exception {

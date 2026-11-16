@@ -55,16 +55,15 @@ public class TransactionDraftService {
         var extracted = parser.parse(extractor.extract(audio, catalog, today));
         if (extracted.date() != null && extracted.date().isAfter(today.plusYears(1))) throw AiException.invalidResponse();
         var resolved = catalogs.validate(userId, catalog, extracted);
-        Integer installments = extracted.installments();
-        if (resolved.accountId() != null && installments == null) installments = 1;
+        Integer installments = extracted.installments() == null ? 1 : extracted.installments();
+        LocalDate date = extracted.date() == null ? today : extracted.date();
         var missing = new ArrayList<String>();
         if (extracted.type() == null) missing.add("type");
         if (extracted.amount() == null) missing.add("amount");
-        if (extracted.date() == null) missing.add("date");
         if (resolved.categoryId() == null) missing.add("categoryId");
         if (resolved.accountId() == null && resolved.creditCardId() == null) missing.add("paymentSource");
-        if (installments == null) missing.add("installments");
-        return new TransactionDraftResponse(extracted.type(), extracted.amount(), extracted.date(),
-                resolved.categoryId(), resolved.accountId(), resolved.creditCardId(), installments, missing, true);
+        return new TransactionDraftResponse(extracted.type(), extracted.amount(), date,
+                resolved.categoryId(), resolved.accountId(), resolved.creditCardId(), installments, missing, true,
+                extracted.description());
     }
 }

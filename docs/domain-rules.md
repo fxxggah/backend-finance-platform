@@ -68,7 +68,7 @@ saldo = initialBalance
 - Edição e exclusão só do próprio usuário. Exclusão é soft delete e sai de todos os cálculos.
 - Listagem **paginada** (máx. 100), ordenada por data decrescente. Filtros: período, tipo, categoria, conta, cartão e texto.
 
-### V2 — normalização do rascunho de voz (decisão de Gabriel, 13/11/2026)
+### V2 — política histórica da PoC (13/11/2026; substituída no endpoint em 16/11/2026)
 
 - Em uma única transação com **conta válida identificada** e `installments` ausente (`null`), o backend define **1**; conta não permite parcelamento. A regra é determinística no backend, não uma inferência delegada ao modelo.
 - Em transação com **cartão**, parcelas não informadas continuam `null` e pendentes de revisão. Sem conta nem cartão resolvido, também não presumir 1.
@@ -247,10 +247,10 @@ Sempre incluir o aviso: *"Simulação ilustrativa, não é recomendação financ
 
 ### V2 / fase 2 — validação do rascunho
 
-- Rascunho não é transação nem autorização para gravar. Sempre revisão/edição e confirmação explícita pela criação existente; pendências nunca recebem valores inventados.
+- Rascunho não é transação nem autorização para gravar. Sempre revisão/edição e confirmação explícita pela criação existente; valor ausente e origem ambígua permanecem pendentes. Sugestões são revisáveis e obedecem à política abaixo.
 - Enumerar eventos: zero recusa como áudio sem transação; dois ou mais recusa como múltiplos. Nunca escolher, somar ou salvar automaticamente. A enumeração ainda depende do modelo e pode falhar; manter revisão obrigatória.
-- Catálogo limitado integralmente a 100 recursos ativos de cada tipo, somente do usuário; acima disso recusar antes da chamada. Referências fora do catálogo, dinheiro inválido, categoria incompatível, XOR inválido, receita em cartão e parcelas explícitas incompatíveis invalidam a resposta da IA. Categoria com tipo não informado pode permanecer identificada, com `type` pendente; não inferir tipo por categoria.
-- Recursos selecionados são revalidados por userId/estado depois da chamada, sem transação de banco aberta durante a rede. Recurso indisponível resulta 404. Campos conhecidos válidos são preservados; parcelas ausentes em conta usam 1, em cartão/origem não resolvida permanecem null. Compra com parcelas > 1 requer tipo EXPENSE quando informado e não pode gerar parcela de valor zero; origem/tipo ainda ausentes ficam pendentes. Datas futuras da compra até um ano via Clock; parcelas futuras são calculadas só na confirmação existente.
+- Catálogo limitado integralmente a 100 recursos ativos de cada tipo, somente do usuário; acima disso recusar antes da chamada. Referências fora do catálogo, dinheiro inválido, categoria incompatível, XOR inválido, receita em cartão e parcelas explícitas incompatíveis invalidam a resposta da IA. Tipo e categoria podem ser sugeridos pelo sentido da fala, usando somente categorias compatíveis do catálogo; sem base suficiente, ficam pendentes. Não escolher tipo apenas por haver uma categoria cadastrada.
+- Recursos selecionados são revalidados por userId/estado depois da chamada, sem transação de banco aberta durante a rede. Recurso indisponível resulta 404. Campos conhecidos válidos são preservados; data ausente usa hoje em America/Sao_Paulo via Clock; parcelas sem indicação de parcelamento usam 1, inclusive em cartão ou origem pendente. Valores explícitos são validados antes dos defaults e nunca sobrescritos. Compra com parcelas > 1 requer tipo EXPENSE quando informado e não pode gerar parcela de valor zero; origem/tipo ainda ausentes ficam pendentes. Datas futuras da compra até um ano via Clock; parcelas futuras são calculadas só na confirmação existente.
 - Ambiente de teste dev e opt-in, sem liberação comercial até PRO/cotas da fase 3. Nenhuma nova gravação humana enviada ao provedor nos testes desta implementação.
 
 ### V2 / fase 3 — acesso e cotas
@@ -260,3 +260,10 @@ Sempre incluir o aviso: *"Simulação ilustrativa, não é recomendação financ
 - Orçamento global conta cada reserva de tentativa, inclusive falhas/abandonos; 10 em janela móvel de 60 s, 400 por dia no Pacífico, configuráveis. Consumo fora desta API não é conhecido localmente; tratar 429 do provedor com cooldown e preenchimento manual. Não há garantia de capacidade do provedor ou mudança de faturamento.
 - Reservar atomicamente com limite pessoal/global e uma chamada em andamento por usuário. Não manter transação de banco durante rede. Lease expira em 120 s (configurável) e não permite sucesso tardio. Revalidar acesso ao finalizar; revogação/expiração durante a chamada impede devolver sucesso e libera o slot pessoal.
 - Chave idempotente obrigatória (8–128 caracteres ASCII de letras, números, ponto, hífen, sublinhado ou dois-pontos); cliente deve usar UUID novo por intenção de envio. Repetição da chave do mesmo usuário resulta 409, sem nova chamada; áudio diferente gera conflito específico. Chaves de usuários diferentes são independentes. Não persistir resposta para replay.
+
+### V2 / fase 4 — preenchimento sugerido aprovado em 16/11/2026
+
+- O endpoint usa prompt `voice-draft-v2` com oito campos por evento, incluindo `description`: resumo curto da operação (1–255 caracteres, sem caracteres de controle), sem transcrição/instruções nem fatos novos. Sem detalhes, pode usar Despesa, Receita ou Transação. Observações continuam opcionais e manuais.
+- Ausência de data usa o dia de São Paulo calculado no backend, antes da chamada; data explícita/relativa válida é preservada. Sem indicação de parcelamento, usar 1; parcelas explícitas válidas são preservadas. Pedido de parcelamento sem quantidade clara ou data mencionada impossível/ambígua deve ser recusado pelo extrator como UNCLEAR_AUDIO, sem tratar como ausência. Essa distinção depende da interpretação do modelo e requer revisão.
+- Inferir tipo/categoria pelo contexto (padaria → Alimentação, se compatível e cadastrada). Conta/cartão exige correspondência com a fala; não escolher pelo primeiro/único recurso cadastrado. Valor ausente e recurso ambíguo permanecem null e em missingFields.
+- Defaults somente após um evento válido e revalidação do catálogo. Zero/múltiplos/saída inválida não geram rascunho. Regras financeiras, isolamento, PRO e cotas permanecem. Revisão obrigatória antes do POST /transactions existente. Esta política substitui a política histórica de parcelas pendentes para o endpoint; a PoC histórica permanece intacta.

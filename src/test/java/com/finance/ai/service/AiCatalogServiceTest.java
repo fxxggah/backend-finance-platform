@@ -50,18 +50,18 @@ class AiCatalogServiceTest {
         var cards = mock(CreditCardRepository.class); var service = new AiCatalogService(accounts, categories, cards);
         var catalog = new ExtractionCatalog(Map.of("c", new ExtractionCatalog.Entry(4L, "Salário", TransactionType.INCOME)),
                 Map.of("a", new ExtractionCatalog.Entry(9L, "Conta", null)), Map.of());
-        var unknown = new ExtractedTransaction(TransactionType.EXPENSE, null, null, null, null, "9", null);
+        var unknown = new ExtractedTransaction(TransactionType.EXPENSE, null, null, null, null, "9", null, "Despesa");
         assertThatThrownBy(() -> service.validate(7L, catalog, unknown)).isInstanceOf(AiException.class)
                 .extracting("code").isEqualTo("INVALID_AI_RESPONSE");
         verifyNoInteractions(accounts, categories, cards);
-        var value = new ExtractedTransaction(null, null, null, null, null, "a", null);
+        var value = new ExtractedTransaction(null, null, null, null, null, "a", null, "Transação");
         when(accounts.findByIdAndUserId(9L, 7L)).thenReturn(Optional.empty());
         var selected = value;
         assertThatThrownBy(() -> service.validate(7L, catalog, selected)).isInstanceOf(AiException.class)
                 .extracting("code").isEqualTo("RESOURCE_NOT_FOUND");
         var category = new Category(); category.setType(TransactionType.INCOME);
         when(categories.findByIdAndUserIdAndDeletedFalse(4L, 7L)).thenReturn(Optional.of(category));
-        var mismatch = new ExtractedTransaction(TransactionType.EXPENSE, null, null, null, "c", null, null);
+        var mismatch = new ExtractedTransaction(TransactionType.EXPENSE, null, null, null, "c", null, null, "Despesa");
         assertThatThrownBy(() -> service.validate(7L, catalog, mismatch)).isInstanceOf(AiException.class)
                 .extracting("code").isEqualTo("INVALID_AI_RESPONSE");
     }

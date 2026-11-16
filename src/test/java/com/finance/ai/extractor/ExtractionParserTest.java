@@ -16,7 +16,7 @@ import static org.assertj.core.api.Assertions.*;
 class ExtractionParserTest {
     private final ExtractionParser parser = new ExtractionParser();
     private static final String SINGLE = """
-            {"events":[{"type":"EXPENSE","amount":"45.01","date":"2026-11-14",
+            {"events":[{"description":"Compra na padaria","type":"EXPENSE","amount":"45.01","date":"2026-11-14",
             "installments":null,"categoryRef":"c","accountRef":"a","creditCardRef":null}]}
             """;
 
@@ -25,6 +25,7 @@ class ExtractionParserTest {
         assertThat(result.amount()).isEqualTo(new BigDecimal("45.01"));
         assertThat(result.date()).isEqualTo(LocalDate.of(2026, 11, 14));
         assertThat(result.installments()).isNull();
+        assertThat(result.description()).isEqualTo("Compra na padaria");
         assertThat(result.toString()).doesNotContain("45.01");
     }
 
@@ -32,6 +33,16 @@ class ExtractionParserTest {
     void refusesInvalidMoney(String amount) {
         assertThatThrownBy(() -> parser.parse(SINGLE.replace("45.01", amount)))
                 .isInstanceOf(AiException.class).extracting("code").isEqualTo("INVALID_AI_RESPONSE");
+    }
+
+    @Test void rejectsInvalidDescriptionsAndDoesNotLogTheirContents() {
+        for (String value : new String[]{"null", "123", "\"\"", "\"   \"", "\"" + "a".repeat(256) + "\"", "\"linha\\nextra\""}) {
+            assertThatThrownBy(() -> parser.parse(SINGLE.replace("\"Compra na padaria\"", value)))
+                    .isInstanceOf(AiException.class).extracting("code").isEqualTo("INVALID_AI_RESPONSE");
+        }
+        assertThat(parser.parse(SINGLE).toString()).doesNotContain("Compra na padaria");
+        assertThatThrownBy(() -> parser.parse(SINGLE.replace("\"description\":\"Compra na padaria\",", "")))
+                .isInstanceOf(AiException.class);
     }
 
     @ParameterizedTest @ValueSource(strings = {"2026-02-30", "14/11/2026", "2026-1-01"})

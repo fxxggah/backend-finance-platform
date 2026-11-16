@@ -15,7 +15,7 @@ import java.util.Map;
 
 public class GeminiTransactionExtractor implements TransactionExtractor {
     public static final String MODEL = "gemini-3.1-flash-lite";
-    public static final String PROMPT_VERSION = "voice-draft-v1";
+    public static final String PROMPT_VERSION = "voice-draft-v2";
     private final String apiKey;
     private final java.util.function.Supplier<Client> clients;
 
@@ -59,13 +59,24 @@ public class GeminiTransactionExtractor implements TransactionExtractor {
                 Se houver mais de três, três bastam. Nunca some eventos nem selecione só um.
                 Parcelas da mesma compra, itens de uma compra com total conjunto e correção verbal
                 são um evento. Alternativas incertas de um gasto também são um evento incompleto.
-                Todos os sete campos devem existir; campo ausente ou ambíguo é null. Preserve fatos
-                conhecidos mesmo com campos pendentes. Não invente tipo, valor, data ou referências.
+                Todos os oito campos devem existir. Gere description curta em português (1 a 255
+                caracteres), resumindo a operação, sem transcrever, acrescentar fatos ou instruções.
+                Exemplo: "fui na padaria e gastei 30 reais" -> description "Compra na padaria",
+                type EXPENSE e categoria Alimentação, se essa categoria existir no catálogo.
+                Sem detalhes para a descrição, use "Despesa", "Receita" ou "Transação" conforme
+                o tipo identificado. Sugira type pelo sentido da fala (gastei/comprei = EXPENSE;
+                recebi salário = INCOME) e categoryRef pela melhor categoria compatível do catálogo,
+                mesmo sem citação literal. Se não houver base ou houver ambiguidade, use null.
+                Preserve fatos conhecidos. Nunca invente valor, instituição ou data mencionada.
                 amount é total da compra em reais, string decimal positiva com duas casas; nunca
                 valor da parcela, nunca arredonde. Se total/parcelas for ambíguo, deixe null.
-                Hoje é %s em America/Sao_Paulo. Resolva datas relativas. Data não mencionada é null.
-                À vista significa installments=1; sem informação explícita, installments=null.
-                Referências somente para nomes claramente mencionados e presentes no catálogo.
+                Hoje é %s em America/Sao_Paulo. Resolva datas relativas. Data não mencionada é null:
+                o backend aplicará hoje. Data mencionada mas impossível/ambígua: retorne events vazio,
+                nunca a substitua por hoje. À vista significa installments=1; sem indicação de
+                parcelamento, installments=null e o backend aplicará 1, inclusive no cartão.
+                Se há indicação de parcelamento sem número claro, retorne events vazio para pedir
+                nova gravação; nunca a trate como compra à vista.
+                accountRef e creditCardRef somente para origem identificável na fala e no catálogo.
                 Uma única opção cadastrada não autoriza completá-la. Instituição desconhecida ou
                 nomes ambíguos deixam referências null. Não substituir uma instituição por outra.
                 Uma conta OU cartão, nunca ambos. Cartão e parcelas >1 somente para EXPENSE no cartão.

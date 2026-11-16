@@ -5,6 +5,6 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 
 public record ExtractedTransaction(TransactionType type, BigDecimal amount, LocalDate date,
-        Integer installments, String categoryRef, String accountRef, String creditCardRef) {
+        Integer installments, String categoryRef, String accountRef, String creditCardRef, String description) {
     @Override public String toString() { return "ExtractedTransaction[conteúdo omitido]"; }
 }

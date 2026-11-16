@@ -18,7 +18,7 @@ import java.util.Set;
 
 public class ExtractionParser {
     private static final Set<String> FIELDS = Set.of("type", "amount", "date", "installments",
-            "categoryRef", "accountRef", "creditCardRef");
+            "categoryRef", "accountRef", "creditCardRef", "description");
     private static final ObjectMapper JSON = new ObjectMapper().enable(JsonParser.Feature.STRICT_DUPLICATE_DETECTION)
             .enable(DeserializationFeature.FAIL_ON_TRAILING_TOKENS);
 
@@ -30,7 +30,7 @@ public class ExtractionParser {
                     || root.get("events").size() > 3) throw AiException.invalidResponse();
             JsonNode events = root.get("events");
             for (JsonNode event : events) {
-                if (!event.isObject() || event.size() != 7 || !FIELDS.stream().allMatch(event::has)) {
+                if (!event.isObject() || event.size() != FIELDS.size() || !FIELDS.stream().allMatch(event::has)) {
                     throw AiException.invalidResponse();
                 }
             }
@@ -39,6 +39,10 @@ public class ExtractionParser {
             if (events.size() > 1) throw new AiException(HttpStatus.UNPROCESSABLE_ENTITY,
                     "MULTIPLE_TRANSACTIONS", "Grave somente uma transação por áudio.");
             JsonNode event = events.get(0);
+            String description = string(event, "description");
+            if (description == null || description.isBlank() || description.length() > 255
+                    || description.codePoints().anyMatch(Character::isISOControl)) throw AiException.invalidResponse();
+            description = description.strip();
             String typeText = string(event, "type");
             TransactionType type = typeText == null ? null : TransactionType.valueOf(typeText);
             String amountText = string(event, "amount");
@@ -58,7 +62,7 @@ public class ExtractionParser {
                     || amount != null && installments != null && amount.compareTo(BigDecimal.valueOf(installments, 2)) < 0) {
                 throw AiException.invalidResponse();
             }
-            return new ExtractedTransaction(type, amount, date, installments, category, account, card);
+            return new ExtractedTransaction(type, amount, date, installments, category, account, card, description);
         } catch (AiException ex) { throw ex; }
         catch (Exception ex) { throw AiException.invalidResponse(); }
     }
@@ -76,6 +80,7 @@ public class ExtractionParser {
                 "required", FIELDS.stream().sorted().toList(), "properties", Map.of(
                         "type", Map.of("type", List.of("string", "null"), "enum", Arrays.asList("INCOME", "EXPENSE", null)),
                         "amount", nullableString, "date", nullableString,
+                        "description", Map.of("type", "string", "minLength", 1, "maxLength", 255),
                         "installments", Map.of("type", List.of("integer", "null"), "minimum", 1, "maximum", 24),
                         "categoryRef", nullableString, "accountRef", nullableString, "creditCardRef", nullableString));
         return Map.of("type", "object", "additionalProperties", false, "required", List.of("events"),

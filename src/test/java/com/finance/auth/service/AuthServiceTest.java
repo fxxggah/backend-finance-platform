@@ -80,6 +80,9 @@ class AuthServiceTest {
     @Mock
     private JwtService jwtService;
 
+    @Mock private com.finance.billing.service.ProAccessService proAccess;
+    @Mock private java.time.Clock clock;
+
     @Captor
     private ArgumentCaptor<List<Category>> categoriesCaptor;
 
@@ -88,6 +91,7 @@ class AuthServiceTest {
 
     @BeforeEach
     void setUp() {
+        lenient().when(clock.instant()).thenReturn(Instant.parse("2026-11-16T12:00:00Z"));
         // Campo injetado por @Value, fora do construtor
         ReflectionTestUtils.setField(authService, "refreshTokenExpiration", REFRESH_EXPIRATION_SECONDS);
     }

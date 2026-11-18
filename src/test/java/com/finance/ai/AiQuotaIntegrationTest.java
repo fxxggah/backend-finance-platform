@@ -32,7 +32,7 @@ import static com.finance.ai.entity.AiUsageRequest.Status.*;
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @Testcontainers
 @Transactional(propagation = Propagation.NOT_SUPPORTED)
-@Import({AiQuotaService.class, AiQuotaConfiguration.class, AiQuotaIntegrationTest.TimeConfig.class})
+@Import({AiQuotaService.class, AiQuotaConfiguration.class, com.finance.billing.service.ProAccessService.class, AiQuotaIntegrationTest.TimeConfig.class})
 class AiQuotaIntegrationTest {
     @Container @ServiceConnection static final MySQLContainer MYSQL = new MySQLContainer("mysql:8.4");
     static class MutableClock extends Clock {
@@ -47,6 +47,7 @@ class AiQuotaIntegrationTest {
         @Bean @Primary MutableClock quotaClock() { return new MutableClock(); }
     }
     @Autowired AiQuotaService quota;
+    @Autowired com.finance.billing.service.ProAccessService proAccess;
     @Autowired AiQuotaProperties limits;
     @Autowired AiUsageRequestRepository requests;
     @Autowired AiGlobalAttemptRepository attempts;
@@ -110,7 +111,7 @@ class AiQuotaIntegrationTest {
 
     private List<Boolean> concurrent(List<Long> ids, boolean secondInstance) throws Exception {
         var start = new CountDownLatch(1);
-        var other = new AiQuotaService(users, guards, requests, attempts, limits, clock);
+        var other = new AiQuotaService(users, guards, requests, attempts, limits, clock, proAccess);
         var template = new TransactionTemplate(transactionManager);
         template.setIsolationLevel(TransactionDefinition.ISOLATION_READ_COMMITTED);
         try (var pool = Executors.newFixedThreadPool(ids.size())) {

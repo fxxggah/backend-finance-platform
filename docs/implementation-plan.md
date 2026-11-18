@@ -8,7 +8,7 @@ Leia **no início de cada tarefa**: fase atual, dono e status. Uma feature por v
 
 - **Responsável:** Gabriel, autor e responsável pelo projeto inteiro. Frontend em outro repositório; o trabalho aqui é restrito ao backend.
 - **V1:** funcional, conforme confirmação de Gabriel. Os checklists antigos estão desatualizados e foram preservados abaixo como histórico, sem declarar verificações individuais como realizadas nesta tarefa.
-- **Fase atual:** V2 / fase 4 — integração implementada nos dois repositórios e verificada automaticamente em 16/11/2026; piloto real ainda em andamento, responsável Gabriel. Gabriel autorizou alterações também em `../fin-frontend`. Build final com voz desligada por padrão; sem publicação em produção. Faltam os resultados do Safari/iPhone e do piloto com provedor real usando dados fictícios. Fases 1–3 concluídas; relatórios antigos ausentes não reabrem a fase 1.
+- **Fase atual:** V2 / fase 5 em implementação, responsável Gabriel. Stripe, contrato de endpoints e regras de acesso aprovados em 16/11/2026; sandbox/dev opt-in. Fase 4 concluída; não há produção habilitada.
 - **Base técnica confirmada:** Java 25, Spring Boot 4.1.1, pacote `com.finance`.
 - A distribuição antiga entre Biel, Breno e João e as decisões de divisão de trabalho abaixo são históricas; o responsável atual por todas as fases é Gabriel.
 
@@ -47,8 +47,8 @@ Todas as fases têm **Gabriel** como responsável. Executar uma tarefa por vez.
 | 1 | Prova técnica gratuita | SDK/modelo/formatos validados com dados fictícios; precisão, latência e consumo medidos | [x] |
 | 2 | Áudio para rascunho | Extração, validação e confirmação verificadas em ambiente de teste; sem escrita financeira pelo modelo | [x] |
 | 3 | PRO e cotas | Acesso manual com validade, bloqueio de BASIC antes da chamada e cotas resistentes à concorrência | [x] |
-| 4 | Integração e piloto | Fluxo completo nos navegadores, revisão obrigatória, fallback manual e controle de liberação | [~] |
-| 5 | Pagamento | Checkout hospedado e webhook com assinatura, idempotência e tratamento de eventos fora de ordem | [ ] |
+| 4 | Integração e piloto | Fluxo completo nos navegadores, revisão obrigatória, fallback manual e controle de liberação | [x] |
+| 5 | Pagamento | Checkout hospedado e webhook com assinatura, idempotência e tratamento de eventos fora de ordem | [~] |
 
 O endpoint da fase 2 não deve ser exposto a usuários antes de concluir as proteções da fase 3. Mudanças de contrato devem ser documentadas e coordenadas com o frontend, em seu repositório.
 
@@ -196,10 +196,11 @@ Definição de pronto: compilação/testes, regras e isolamento cobertos; nova m
 - [x] Documentar fluxo e sincronizar OpenAPI/tipos do frontend com o backend atual, sem editar tipos gerados à mão.
 - [x] Integrar captura nativa WebM/MP4, prévia e envio explícito no formulário existente; até 29 s de captura/2 MiB, liberação do microfone e cancelamento no fechamento/saída.
 - [x] Adicionar flag pública de piloto no frontend, desligada por padrão, e acesso visual condicionado ao PRO do backend; continuar com bloqueio efetivo no backend.
-- [x] Aplicar rascunho ao formulário com campos desconhecidos em branco, preservar conhecidos, exigir revisão explícita e confirmar pela criação existente. Não inventar data/tipo/conta/parcelas ausentes.
+- [x] Aplicar rascunho ao formulário com campos desconhecidos em branco, preservar conhecidos, exigir revisão explícita e confirmar pela criação existente. Aplicar a política de sugestões aprovada em 16/11/2026: hoje/1 parcela quando ausentes, descrição e tipo/categoria pelo contexto; valor ausente e origem ambígua continuam pendentes.
 - [x] Tratar erros/permissão/indisponibilidade/cotas/repetição com alternativa manual, sem reenvio automático de IA ou criação financeira.
 - [x] Testar transporte binário, sessão, idempotência, pendências, bloqueios e confirmação; validar mobile/desktop e regressões existentes.
-- [ ] Registrar resultados e limitações do piloto real no Safari/iPhone e Chrome, sem inventar evidências nem liberar produção automaticamente.
+- [x] Registrar o relato de Gabriel de aprovação do piloto local no Chrome com provedor real e dados fictícios, após o ajuste de preenchimento.
+- [x] Gabriel confirmou o piloto no Safari/iPhone por HTTPS de desenvolvimento em 16/11/2026: “testei, tudo okay”. Registro baseado no relato do usuário, sem inventar versão de iOS, métricas ou evidência automatizada do Safari. Sem liberação de produção.
 
 O frontend autorizado está em `C:\dev\fin-app\fin-frontend`. Os arquivos `.env*`, alterações visuais já existentes de Gabriel e o Design System serão preservados. Não adicionar bibliotecas. Gerar snapshot a partir do `/v3/api-docs` do teste de integração do backend (`-Dfin.exportOpenapi=true`), que usa banco/provedor de teste; não iniciar backend com dados reais nem enviar novos áudios humanos ao Google nesta implementação. `TransactionDraftIntegrationTest.swaggerDescribesRawAudioAndResponse` poderá exportar somente o schema para `build/phase4-openapi.json` quando essa propriedade estiver explicitamente habilitada.
 
@@ -566,6 +567,50 @@ Ideias que apareceram no caminho e **não** serão implementadas agora. Anote aq
 - [x] Gabriel aprovou descrição pela fala, hoje quando data ausente, inferência de tipo/categoria pelo contexto e 1 parcela por padrão, inclusive no cartão.
 - [x] Implementar no backend e integrar description ao formulário; preservar valor/origem pendentes, revisão e confirmação existentes. Contrato aditivo coordenado com o frontend: atualizar backend antes do frontend. Sem migration/dependência nova.
 - [x] Compile com JDK 25, regressão completa (979 testes, zero falhas/erros/ignorados), exportação do OpenAPI real, geração dos tipos e 23 testes de API aprovados. Builds de QA/final e Chrome 390/1440 aprovados; rascunho completo confirmado sem digitar, após revisão.
-- [ ] Gabriel repetir a frase da padaria no provedor real; piloto Safari continua pendente.
+- [x] Gabriel confirmou o novo resultado da frase da padaria e, em seguida, relatou aprovação dos testes locais sugeridos: data explícita, cartão em 3 parcelas, origem ausente e duas transações. Relato do usuário, sem inspeção adicional de logs/áudios pelo agente.
+- [x] Acesso HTTPS preparado e piloto Safari/iPhone confirmado por Gabriel em 16/11/2026.
 
 Evidências do ajuste: build/voice-draft-v2-compile.log, voice-draft-v2-focused.log (48 testes), voice-draft-v2-regression.log (979), voice-draft-v2-api.log, voice-draft-v2-build.log, voice-draft-v2-build-final.log e voice-draft-v2-ui.log. Testes usam mocks/servidor local/MySQL de Testcontainers, sem nova chamada ao Gemini; não comprovam precisão do prompt v2. Sem alteração de schema, migration ou dependência. Isolamento e confirmação continuam cobertos pela integração. Build final com piloto desligado; arquivos de ambiente do usuário preservados. Não publicar nem declarar o piloto Safari concluído.
+
+### Preparação do acesso Safari — 16/11/2026
+
+- [x] Gabriel pediu acesso pelo Safari do iPhone ao ambiente local para concluir a fase 4.
+- [x] Preparar proxy temporário restrito em 127.0.0.1:8766, frontend auxiliar 3007 e backend 8080; scripts e sete testes no frontend. Não altera API, regras, schema, dependências, .env nem processo normal da porta 3000.
+- [x] Conferir contra Next/API reais sem credenciais: página/assets 200, proteção de sessão/origem, API 401 sem JWT e arquivos internos/Swagger 404. Sem enviar áudio ao Gemini.
+- [x] Gabriel autorizou explicitamente encaminhar páginas/login/áudio pelo Cloudflare. A revisão automática havia bloqueado a primeira tentativa; após implementar/testar o proxy e obter a autorização específica, o túnel foi iniciado.
+- [x] Origem HTTPS temporária criada, frontend auxiliar compilado com voz e API na mesma origem, proxy iniciado. Builds e sete testes aprovados; HTTPS real: login/20 assets 200, sessão inválida 400, API/refresh sem credenciais 401, redirecionamento na origem externa e arquivos internos/Swagger 404. URL/relatório em build/safari-pilot/origin.txt e https-check.json, sem credenciais.
+- [x] Gabriel confirmou o teste completo no Safari após receber a orientação de OAuth. O agente não alterou nem inspecionou a configuração externa do Google; registrar somente o funcionamento relatado, sem afirmar uma alteração específica no console.
+- [x] Gabriel confirmou o piloto no Safari. Fase 4 concluída; fase 5 aguarda início.
+### Encerramento da fase 4 — 16/11/2026
+
+Gabriel informou “testei, tudo okay” após o acesso Safari disponibilizado. Chrome e Safari registrados como aprovados pelo usuário; não há relatório de versão iOS ou métricas novas, nem se extrapola esse piloto para garantia de precisão geral. A compilação/regressão do ajuste já foi aprovada (979 testes backend, 23 API, builds e QA Chrome); o helper HTTPS teve sete testes e verificações reais sem credenciais. Nesta etapa final somente documentação e configuração de build local, sem mudança de código Java/schema/API, portanto sem repetir Maven.
+
+As sessões auxiliares já estavam encerradas quando verificadas; não havia processo cloudflared nem listeners 3007/8766. Nenhum processo do usuário foi encerrado. Remover a origem trycloudflare temporária do cliente OAuth é ação manual de Gabriel, sem alteração externa pelo agente. Não inicia pagamentos ou produção automaticamente.
+
+Build de encerramento: primeira execução compilou/validou TypeScript mas o Next 16.4.3 retornou SecurityFatalError com aviso de vulnerabilidade conhecida. A repetição do mesmo pnpm build, sem flags de desativação nem alteração de dependências, passou. Logs: build/safari-pilot/build-after-pilot.log e build-after-pilot-retry.log. Build local restaurado para localhost:8080 e flag de voz false; .env preservado. Pendência separada antes de produção: investigar e atualizar o Next conforme advisories oficiais, sem executar automaticamente instruções de upgrade emitidas no log. A confirmação funcional do piloto não equivale a auditoria de segurança.
+### Fase 5 — Stripe sandbox
+
+Suporte ao piloto em 18/11/2026: WinGet não localizou Stripe.StripeCLI no ambiente de Gabriel. CLI portátil oficial 1.55.12 preparado em build/stripe-cli, SHA-256 validado contra o digest da release e --version aprovado; diretório ignorado pelo Git. Login/autorização do sandbox continuam manuais. Sem mudança em Java/dependências/schema/segredos, portanto sem repetir Maven nesta tarefa de instalação/documentação. Passos atualizados em docs/stripe-sandbox.md.
+
+- [x] Stripe, plano mensal BRL/cartão e contrato de checkout/portal/webhook aprovados; preço/credenciais ficam para configuração manual posterior.
+- [x] Aprovar cancelamento até fim pago, PRO manual independente, reembolso/disputa e exclusão com cancelamento remoto. Docs de arquitetura, domínio, modelo V3 e API definidos.
+- [x] Next atualizado para 16.4.6 e builds/regressão de sessão aprovados; SDK Stripe Java 34.1.0 informado antes da dependência.
+- [x] Migration V3, gateway SDK sandbox, locks/leases/fencing, inbox persistente, reconciliação e acesso pago agregado no banco implementados.
+- [x] Checkout/portal/status nas Configurações, opt-in, sem mudar Design System; URLs Stripe validadas também no frontend e sem concessão pelo retorno.
+- [x] Fraude de assinatura, livemode/Connect/versão, tempo passado/futuro, preço/moeda/customer, repetição/concorrência/fencing, ordenação, reembolso/disputa, falhas remotas e exclusão testados. JWT já emitido bloqueado no Resource Server para usuário inativo, com teste real de /accounts.
+- [x] mvnw.cmd -U clean compile e regressão completa final (1.004 testes, zero falhas/erros/ignorados). OpenAPI/tipos reais com IA+cobrança sincronizados, build Next 16.4.6 e QA Chrome 390/1440 aprovados; 28 testes de API do frontend.
+- [ ] Gabriel configurar conta sandbox, preço mensal e portal, variáveis de ambiente e webhook; executar piloto Stripe sandbox. Sem cobrança real ou liberação de produção.
+
+### Resultado da implementação da fase 5 (sandbox)
+
+- [x] Corrigir criação do checkout na API Endive após o sandbox retornar HTTP 400 para o parâmetro `payment_method_types`. A configuração dos métodos passa pelo painel Stripe, e o gateway valida cartão como opção exclusiva antes de devolver o link.
+
+- [x] Recuperar a V3 no banco de desenvolvimento local. O MySQL 9.1 do Wamp usava MyISAM como padrão e recusou um índice da V3. O perfil dev agora seleciona InnoDB por conexão. O Flyway removeu o registro da tentativa falha, aplicou a V3 original e validou as três migrations. As quatro tabelas de cobrança estão em InnoDB e o backend local iniciou com health `UP`.
+
+Código e verificações automáticas concluídos em 16/11/2026. Fase permanece [~] por falta da configuração/piloto na conta Stripe de Gabriel; nenhuma cobrança real, credencial de produção, criação de produto ou publicação foi executada. Checkout/portal/webhook só dev & !prod e opt-in. Roteiro manual completo em docs/stripe-sandbox.md; valor comercial e IDs de preço/portal ainda serão definidos pelo responsável.
+
+Evidências: build/phase5-compile-final.log e phase5-regression-final.log (1.004 testes); phase5-contract-final.log (24 testes do contrato/SDK antes do último endurecimento JWT, revalidado na regressão final); phase5-frontend-api-final.log (28); phase5-frontend-build-qa-final.log e phase5-frontend-build-final.log; phase5-billing-ui-final.log, phase5-auth-ui.log e phase5-disabled-ui.log. Chrome controlado aprovou checkout/portal únicos sob clique duplo, preço/status do servidor, retorno sem grant, URL externa bloqueada, erros sem retry, chave preservada em falha incerta, estados loading/empty/error e sessão/login/logout/recarga. Capturas fictícias revisadas em build/phase5-ui.
+
+A primeira rodada encontrou Docker desligado e Clock ausente no teste de login; corrigidos antes das rodadas aprovadas. O primeiro snapshot Stripe omitia a feature de IA e as respostas 200 dos novos endpoints: corrigidas as anotações e o contexto de exportação; contrato final preserva as duas features e é gerado, não editado manualmente. O helper CDP recebeu espera de DOM inicial e tratamento apenas de cancelamentos de interceptação esperados ao navegar. Não se alteraram as regras para fazer os testes passar.
+
+Definição de pronto técnica: compilação/testes, regras/isolamento/concorrência, migration/validate e docs/OpenAPI aprovados. Sem alterações em .env ou nas mudanças visuais anteriores. Build final com ambos pilotos false e API localhost:8080; não substitui o pnpm dev/ambiente do usuário. Encerrar somente após Gabriel configurar e executar o piloto Stripe sandbox; produção permanece fora desta entrega.

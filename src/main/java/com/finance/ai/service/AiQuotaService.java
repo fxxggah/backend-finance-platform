@@ -27,11 +27,12 @@ public class AiQuotaService {
     private final AiGlobalAttemptRepository attempts;
     private final AiQuotaProperties limits;
     private final Clock clock;
+    private final com.finance.billing.service.ProAccessService proAccess;
 
     public AiQuotaService(UserRepository users, AiQuotaGuardRepository guards, AiUsageRequestRepository requests,
-            AiGlobalAttemptRepository attempts, AiQuotaProperties limits, Clock clock) {
+            AiGlobalAttemptRepository attempts, AiQuotaProperties limits, Clock clock, com.finance.billing.service.ProAccessService proAccess) {
         this.users = users; this.guards = guards; this.requests = requests;
-        this.attempts = attempts; this.limits = limits; this.clock = clock;
+        this.attempts = attempts; this.limits = limits; this.clock = clock; this.proAccess = proAccess;
     }
 
     @Transactional(readOnly = true)
@@ -109,7 +110,8 @@ public class AiQuotaService {
     private User activePro(Long userId, Instant now) {
         User user = users.findById(userId).filter(User::isActive).orElseThrow(() ->
                 new AiException(HttpStatus.NOT_FOUND, "USER_NOT_FOUND", "Usuário não encontrado."));
-        if (user.getProExpiresAt() == null || !user.getProExpiresAt().isAfter(now)) {
+        var expiresAt = com.finance.billing.service.ProAccessService.max(user.getProExpiresAt(), proAccess.paidUntil(userId, now));
+        if (expiresAt == null || !expiresAt.isAfter(now)) {
             throw new AiException(HttpStatus.FORBIDDEN, "PRO_REQUIRED", "A gravação por voz está disponível somente para PRO com validade ativa.");
         }
         return user;

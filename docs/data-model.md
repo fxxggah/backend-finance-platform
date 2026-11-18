@@ -269,3 +269,11 @@ Não é migration: é feito pelo `AuthService` no primeiro login (ver `docs/doma
 - `V1__init.sql` cria **todas** as tabelas, índices e `CHECK`, incluindo as colunas de cartão em `transactions` (nullable). Evita alterar `transactions` com dados em produção.
 - Uma migration por mudança. `ddl-auto=validate` em produção.
 - Testes de repositório rodam as migrations em **MySQL real (Testcontainers)**, nunca H2.
+
+## V2 / fase 5 — migration V3 (modelo aprovado)
+
+- billing_customers: um por user_id (FK users ON DELETE CASCADE), UUID reference_uuid único, stripe_customer_id único nullable; checkout_key_hash, checkout_operation UUID, checkout_id/url/validade, fingerprint de preço/origem e início da criação de customer, sync_token/lease_until, next_sync_at, deleting. Auditoria BaseEntity. Campos de checkout são reserva operacional (não plano derivado); URL somente ao proprietário, nunca em log.
+- billing_subscriptions: user_id FK CASCADE, stripe_subscription_id único, status, cancel_at_period_end, current_period_end, auditoria. Consultas privadas sempre por user_id; histórico de assinaturas permite cancelar e contratar novamente.
+- billing_invoices: user_id FK CASCADE, stripe_invoice_id único, stripe_subscription_id, stripe_charge_id único, amount DECIMAL(19,2), currency, period_start/end, revoked, review_required, auditoria. MAX(period_end) com user_id/período válido calcula acesso; não gravar saldo/plano calculado no usuário.
+- billing_events: inbox global técnica, stripe_event_id único, event_type, resource_id, status, attempts, next_attempt_at, lease_until/token, auditoria. Sem áudio, cartão, token, dados pessoais ou payload bruto. Sem FK de usuário antes da resolução; nunca exposta em listagem pública/privada. Worker consulta registros técnicos paginados até 100; vinculação ao usuário só após lookup do customer local e revalidação remota.
+- Índices de user_id/validade e estado/agendamento; chaves Stripe usam comparação binária. Datas de período e processamento Instant UTC com Clock. Não editar V1/V2 aplicadas. Sem schema de cartão do gateway e sem coluna de PRO pago redundante em users.

@@ -59,6 +59,10 @@ class UserServiceTest {
     @Mock
     private CategoryRepository categoryRepository;
 
+    @Mock private com.finance.billing.service.ProAccessService proAccess;
+    @Mock private com.finance.billing.service.BillingDeletionService deletion;
+    @Mock private java.time.Clock clock;
+
     @InjectMocks
     private UserService userService;
 
@@ -66,6 +70,7 @@ class UserServiceTest {
 
     @BeforeEach
     void setUp() {
+        org.mockito.Mockito.lenient().when(clock.instant()).thenReturn(java.time.Instant.parse("2026-11-16T12:00:00Z"));
         user = new User("google-123", "joao@example.com", "João Silva", "https://img.example.com/joao.png");
         user.setId(USER_ID);
     }
@@ -139,69 +144,9 @@ class UserServiceTest {
                 .hasMessage(NOT_FOUND_MESSAGE);
     }
 
-    // ---------- delete ----------
-
-    @Test
-    @DisplayName("delete: deve remover os dados dependentes na ordem correta e por fim o usuário")
-    void delete_shouldDeleteDependenciesInOrderAndThenUser() {
-        when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user));
-
+    @Test void deleteDelegatesToCancellationBeforePhysicalDeletion() {
         userService.delete(USER_ID);
-
-        InOrder order = inOrder(
-                goalContributionRepository,
-                goalRepository,
-                invoicePaymentRepository,
-                transactionRepository,
-                transferRepository,
-                refreshTokenRepository,
-                creditCardRepository,
-                accountRepository,
-                categoryRepository,
-                userRepository);
-
-        order.verify(goalContributionRepository).deleteAllByGoalUserId(USER_ID);
-        order.verify(goalRepository).deleteAllByUserId(USER_ID);
-        order.verify(invoicePaymentRepository).deleteAllByUserId(USER_ID);
-        order.verify(transactionRepository).deleteAllByUserId(USER_ID);
-        order.verify(transferRepository).deleteAllByUserId(USER_ID);
-        order.verify(refreshTokenRepository).deleteAllByUserId(USER_ID);
-        order.verify(creditCardRepository).deleteAllByUserId(USER_ID);
-        order.verify(accountRepository).deleteAllByUserId(USER_ID);
-        order.verify(categoryRepository).deleteAllByUserId(USER_ID);
-        order.verify(userRepository).delete(user);
-    }
-
-    @Test
-    @DisplayName("delete: deve permitir excluir usuário inativo")
-    void delete_shouldDeleteUser_evenWhenInactive() {
-        user.setActive(false);
-        when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user));
-
-        userService.delete(USER_ID);
-
-        verify(userRepository).delete(user);
-    }
-
-    @Test
-    @DisplayName("delete: deve lançar ResourceNotFoundException e não apagar nada quando o usuário não existe")
-    void delete_shouldThrowAndDeleteNothing_whenUserDoesNotExist() {
-        when(userRepository.findById(USER_ID)).thenReturn(Optional.empty());
-
-        assertThatThrownBy(() -> userService.delete(USER_ID))
-                .isInstanceOf(ResourceNotFoundException.class)
-                .hasMessage(NOT_FOUND_MESSAGE);
-
-        verify(userRepository, never()).delete(user);
-        verifyNoInteractions(
-                goalContributionRepository,
-                goalRepository,
-                invoicePaymentRepository,
-                transactionRepository,
-                transferRepository,
-                refreshTokenRepository,
-                creditCardRepository,
-                accountRepository,
-                categoryRepository);
+        verify(deletion).delete(USER_ID);
+        verifyNoInteractions(userRepository);
     }
 }

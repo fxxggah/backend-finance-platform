@@ -8,6 +8,13 @@ server:
   port: ${PORT:8080}
 
 app:
+  billing:
+    enabled: ${FIN_BILLING_ENABLED:false}
+    secret-key: ${FIN_STRIPE_SECRET_KEY:}
+    webhook-secret: ${FIN_STRIPE_WEBHOOK_SECRET:}
+    price-id: ${FIN_STRIPE_PRICE_ID:}
+    portal-configuration-id: ${FIN_STRIPE_PORTAL_CONFIGURATION_ID:}
+    frontend-origin: ${FIN_BILLING_FRONTEND_ORIGIN:http://localhost:3000}
   ai:
     enabled: ${FIN_AI_ENABLED:false}
     ffprobe-path: ${FIN_FFPROBE_PATH:}

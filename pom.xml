@@ -30,6 +30,12 @@
 		<java.version>25</java.version>
 	</properties>
 	<dependencies>
+		<!-- V2 fase 5: API e verificação de webhooks Stripe; sandbox/dev opt-in. -->
+		<dependency>
+			<groupId>com.stripe</groupId>
+			<artifactId>stripe-java</artifactId>
+			<version>34.1.0</version>
+		</dependency>
 		<!-- V2: extrator de áudio; execução restrita a dev e opt-in na fase 2. -->
 		<dependency>
 			<groupId>com.google.genai</groupId>

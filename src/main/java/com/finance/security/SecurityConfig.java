@@ -25,6 +25,9 @@ import java.util.List;
 @EnableWebSecurity
 public class SecurityConfig {
 
+    @org.springframework.beans.factory.annotation.Autowired
+    private org.springframework.beans.factory.ObjectProvider<com.finance.user.repository.UserRepository> userRepositories;
+
     @Value("${app.jwt.secret}")
     private String jwtSecret;
 
@@ -46,6 +49,7 @@ public class SecurityConfig {
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .authorizeHttpRequests(auth -> auth
+                        .requestMatchers(org.springframework.http.HttpMethod.POST, "/api/v1/billing/webhooks/stripe").permitAll()
                         .requestMatchers(PUBLIC_PATHS).permitAll()
                         .anyRequest().authenticated())
                 .oauth2ResourceServer(oauth2 -> oauth2.jwt(jwt -> jwt.decoder(jwtDecoder())));
@@ -56,7 +60,20 @@ public class SecurityConfig {
     @Bean
     public JwtDecoder jwtDecoder() {
         SecretKeySpec key = new SecretKeySpec(jwtSecret.getBytes(), "HmacSHA256");
-        return NimbusJwtDecoder.withSecretKey(key).build();
+        var decoder = NimbusJwtDecoder.withSecretKey(key).build();
+        org.springframework.security.oauth2.core.OAuth2TokenValidator<org.springframework.security.oauth2.jwt.Jwt> activeUser = jwt -> {
+            try {
+                long userId = Long.parseLong(jwt.getSubject());
+                var users = userRepositories.getIfAvailable();
+                if (userId > 0 && users != null && users.existsByIdAndActiveTrue(userId))
+                    return org.springframework.security.oauth2.core.OAuth2TokenValidatorResult.success();
+            } catch (RuntimeException ignored) { /* Validar usuário também falha fechado se o banco não estiver disponível. */ }
+            return org.springframework.security.oauth2.core.OAuth2TokenValidatorResult.failure(
+                    new org.springframework.security.oauth2.core.OAuth2Error("invalid_token", "Usuário não disponível", null));
+        };
+        decoder.setJwtValidator(new org.springframework.security.oauth2.core.DelegatingOAuth2TokenValidator<>(
+                org.springframework.security.oauth2.jwt.JwtValidators.createDefault(), activeUser));
+        return decoder;
     }
 
     @Bean

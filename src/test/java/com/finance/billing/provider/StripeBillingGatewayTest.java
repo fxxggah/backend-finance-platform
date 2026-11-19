@@ -72,9 +72,13 @@ class StripeBillingGatewayTest {
             else if(path.equals("/v1/customers/cus_fixture")) response="{\"id\":\"cus_fixture\",\"livemode\":false,\"metadata\":{\"fin_reference\":\"reference\"}}";
             else if(path.equals("/v1/subscriptions")) response="""
                     {"has_more":%s,"data":[{"id":"sub_fixture","customer":"cus_fixture","livemode":false,
-                    "status":"active","cancel_at_period_end":false,"metadata":{"fin_reference":"reference"},
+                    "status":"active","cancel_at_period_end":%s,"cancel_at":%s,"metadata":{"fin_reference":"reference"},
                     "items":{"has_more":false,"data":[{"quantity":1,"price":{"id":"price_fixture"},"current_period_end":%d}]}}]}
-                    """.formatted(mode.equals("paginated"),end);
+                    """.formatted(mode.equals("paginated"),mode.equals("legacyCancel"),switch (mode) {
+                        case "portalCancel" -> Long.toString(end);
+                        case "otherCancelDate" -> Long.toString(end + 86400);
+                        default -> "null";
+                    },end);
             else if(path.equals("/v1/invoices")) response="""
                     {"has_more":false,"data":[{"id":"in_fixture","livemode":false,"customer":"cus_fixture","status":"%s",
                     "currency":"brl","total":3990,"amount_paid":%d,"amount_remaining":0,
@@ -99,6 +103,13 @@ class StripeBillingGatewayTest {
             var gateway=new StripeBillingGateway(properties(),CLOCK,client);
             var invoice=gateway.snapshot("cus_fixture","reference").invoices().getFirst();
             assertThat(invoice.amount()).isEqualByComparingTo("39.90");assertThat(invoice.revoked()).isFalse();
+            for (String mode : List.of("portalCancel", "legacyCancel", "otherCancelDate", "paid")) {
+                scenario.set(mode);
+                var snapshot = gateway.snapshot("cus_fixture", "reference");
+                assertThat(snapshot.subscriptions().getFirst().cancelAtPeriodEnd())
+                        .as(mode).isEqualTo(mode.equals("portalCancel") || mode.equals("legacyCancel"));
+                assertThat(snapshot.invoices().getFirst().revoked()).isFalse();
+            }
             for(String mode:List.of("full","disputed")) {scenario.set(mode);assertThat(gateway.snapshot("cus_fixture","reference").invoices().getFirst().revoked()).isTrue();}
             scenario.set("won");assertThat(gateway.snapshot("cus_fixture","reference").invoices().getFirst().revoked()).isFalse();
             scenario.set("partial");var partial=gateway.snapshot("cus_fixture","reference").invoices().getFirst();

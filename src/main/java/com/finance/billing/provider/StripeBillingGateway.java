@@ -106,7 +106,10 @@ public class StripeBillingGateway implements BillingGateway {
             String subId = id(value, "sub_"); known.add(subId);
             String status = text(value, "status");
             require(Set.of("incomplete", "incomplete_expired", "trialing", "active", "past_due", "canceled", "unpaid", "paused").contains(status));
-            subscriptions.add(new Subscription(subId, status, value.path("cancel_at_period_end").asBoolean(), instant(item, "current_period_end")));
+            Instant periodEnd = instant(item, "current_period_end");
+            boolean cancelAtPeriodEnd = value.path("cancel_at_period_end").asBoolean()
+                    || (value.hasNonNull("cancel_at") && periodEnd.equals(instant(value, "cancel_at")));
+            subscriptions.add(new Subscription(subId, status, cancelAtPeriodEnd, periodEnd));
         }
         var invoices = new ArrayList<Invoice>();
         for (var invoice : list("/v1/invoices", Map.of("customer", customerId, "limit", "100"))) {

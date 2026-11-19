@@ -599,15 +599,20 @@ Suporte ao piloto em 18/11/2026: WinGet não localizou Stripe.StripeCLI no ambie
 - [x] Checkout/portal/status nas Configurações, opt-in, sem mudar Design System; URLs Stripe validadas também no frontend e sem concessão pelo retorno.
 - [x] Fraude de assinatura, livemode/Connect/versão, tempo passado/futuro, preço/moeda/customer, repetição/concorrência/fencing, ordenação, reembolso/disputa, falhas remotas e exclusão testados. JWT já emitido bloqueado no Resource Server para usuário inativo, com teste real de /accounts.
 - [x] mvnw.cmd -U clean compile e regressão completa final (1.004 testes, zero falhas/erros/ignorados). OpenAPI/tipos reais com IA+cobrança sincronizados, build Next 16.4.6 e QA Chrome 390/1440 aprovados; 28 testes de API do frontend.
-- [ ] Gabriel configurar conta sandbox, preço mensal e portal, variáveis de ambiente e webhook; executar piloto Stripe sandbox. Sem cobrança real ou liberação de produção.
+- [x] Gabriel configurou sandbox, preço mensal, portal, variáveis de ambiente e webhook. Pagamento de teste aprovado com validade paga no FIN.
+- [ ] Concluir o restante do piloto Stripe sandbox conforme docs/stripe-sandbox.md. Sem cobrança real ou liberação de produção.
 
 ### Resultado da implementação da fase 5 (sandbox)
+
+- Em 19/11/2026, Gabriel agendou o cancelamento no portal Stripe de teste. O evento foi processado e o acesso até 18/12 foi preservado. Consulta à Stripe confirmou `cancel_at` no fim do período, mesmo com `cancel_at_period_end=false`. O gateway passou a reconhecer as duas representações. Falta confirmar o aviso no FIN após reiniciar e sincronizar.
+
+- [x] Gabriel confirmou o primeiro pagamento de sandbox com assinatura ativa e validade paga exibida no FIN. No retorno do Stripe, o frontend consulta o status a cada 2 segundos por até 1 minuto. A liberação continua dependendo da confirmação do backend.
 
 - [x] Corrigir criação do checkout na API Endive após o sandbox retornar HTTP 400 para o parâmetro `payment_method_types`. A configuração dos métodos passa pelo painel Stripe, e o gateway valida cartão como opção exclusiva antes de devolver o link.
 
 - [x] Recuperar a V3 no banco de desenvolvimento local. O MySQL 9.1 do Wamp usava MyISAM como padrão e recusou um índice da V3. O perfil dev agora seleciona InnoDB por conexão. O Flyway removeu o registro da tentativa falha, aplicou a V3 original e validou as três migrations. As quatro tabelas de cobrança estão em InnoDB e o backend local iniciou com health `UP`.
 
-Código e verificações automáticas concluídos em 16/11/2026. Fase permanece [~] por falta da configuração/piloto na conta Stripe de Gabriel; nenhuma cobrança real, credencial de produção, criação de produto ou publicação foi executada. Checkout/portal/webhook só dev & !prod e opt-in. Roteiro manual completo em docs/stripe-sandbox.md; valor comercial e IDs de preço/portal ainda serão definidos pelo responsável.
+Código inicial e verificações automáticas concluídos em 16/11/2026. O checkout e a confirmação da primeira fatura de teste foram validados no sandbox de Gabriel. A fase permanece [~] até concluir o restante do piloto em docs/stripe-sandbox.md. Checkout, portal e webhook só em dev & !prod e opt-in. A liberação em produção segue fora desta etapa.
 
 Evidências: build/phase5-compile-final.log e phase5-regression-final.log (1.004 testes); phase5-contract-final.log (24 testes do contrato/SDK antes do último endurecimento JWT, revalidado na regressão final); phase5-frontend-api-final.log (28); phase5-frontend-build-qa-final.log e phase5-frontend-build-final.log; phase5-billing-ui-final.log, phase5-auth-ui.log e phase5-disabled-ui.log. Chrome controlado aprovou checkout/portal únicos sob clique duplo, preço/status do servidor, retorno sem grant, URL externa bloqueada, erros sem retry, chave preservada em falha incerta, estados loading/empty/error e sessão/login/logout/recarga. Capturas fictícias revisadas em build/phase5-ui.
 

@@ -601,6 +601,13 @@ Suporte ao piloto em 18/11/2026: WinGet não localizou Stripe.StripeCLI no ambie
 - [x] mvnw.cmd -U clean compile e regressão completa final (1.004 testes, zero falhas/erros/ignorados). OpenAPI/tipos reais com IA+cobrança sincronizados, build Next 16.4.6 e QA Chrome 390/1440 aprovados; 28 testes de API do frontend.
 - [x] Gabriel configurou sandbox, preço mensal, portal, variáveis de ambiente e webhook. Pagamento de teste aprovado com validade paga no FIN.
 - [ ] Concluir o restante do piloto Stripe sandbox conforme docs/stripe-sandbox.md. Sem cobrança real ou liberação de produção.
+  - [x] Checkout aprovado, pagamento recusado, portal com cartão de teste padrão, cancelamento ao fim do período e reembolso integral verificados no sandbox.
+  - [ ] Confirmar na interface o retorno pelo botão de saída do checkout sem pagamento.
+  - [x] Stripe gerou e pagou uma segunda fatura de R$ 9,90 (`subscription_cycle`) com relógio de teste e cliente descartável sem vínculo local. O teste de integração com MySQL valida a validade do FIN com fatura de renovação recusada e depois paga.
+  - [x] Renovação de ponta a ponta com cliente e conta local descartáveis. A Stripe pagou R$ 9,90 na segunda fatura, o listener entregou o `invoice.paid`, e o worker concluiu na primeira tentativa. O FIN manteve a validade original antes da virada e passou a usar 19/12/2026 após o início do período renovado. A conta fictícia foi criada para o piloto, sem login Google ou alteração das contas existentes.
+  - [x] Na integração com MySQL, evento assinado repetido não duplica período e evento pago atrasado não restaura período reembolsado.
+  - [ ] Reenviar um evento real. O sandbox não tem destino de webhook cadastrado para reenvio; o listener local continua recebendo eventos novos.
+  - [ ] Validar exclusão ponta a ponta com conta explicitamente descartável e recorrência ativa no sandbox.
 
 ### Resultado da implementação da fase 5 (sandbox)
 

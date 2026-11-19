@@ -152,6 +152,39 @@ class BillingIntegrationTest {
         clock.advance(30*86400L);assertThat(userService.get(user.getId()).plan()).isEqualTo("BASIC");
         assertThatThrownBy(()->quota.checkAccess(user.getId())).isInstanceOf(AiException.class);
     }
+
+    @Test void renewalKeepsOriginalExpiryUntilNewPeriodIsPaid() throws Exception {
+        checkout();
+        stage = "paid";
+        billing.synchronize(user.getId());
+
+        Instant firstPeriodEnd = end;
+        Instant renewalEnd = firstPeriodEnd.plusSeconds(30 * 86400L);
+        var firstInvoice = new BillingGateway.Invoice(invoiceId, subId, chargeId,
+                new BigDecimal("39.90"), start, firstPeriodEnd, false, false);
+        invoiceId += "_renewal";
+        String failedEvent = "evt_renewal_failed" + user.getId();
+        deliver(failedEvent, "invoice.payment_failed");
+        doAnswer(a -> new BillingGateway.Snapshot(a.getArgument(0), a.getArgument(1),
+                List.of(new BillingGateway.Subscription(subId, "past_due", false, renewalEnd)),
+                List.of(firstInvoice))).when(gateway).snapshot(anyString(), anyString());
+        process(failedEvent);
+        assertThat(billing.status(user.getId()).paidUntil()).isEqualTo(firstPeriodEnd);
+
+        clock.advance(firstPeriodEnd.getEpochSecond() - clock.instant().getEpochSecond());
+        assertThat(userService.get(user.getId()).plan()).isEqualTo("BASIC");
+
+        var paidRenewal = new BillingGateway.Invoice(invoiceId, subId, chargeId + "_renewal",
+                new BigDecimal("39.90"), firstPeriodEnd, renewalEnd, false, false);
+        doAnswer(a -> new BillingGateway.Snapshot(a.getArgument(0), a.getArgument(1),
+                List.of(new BillingGateway.Subscription(subId, "active", false, renewalEnd)),
+                List.of(firstInvoice, paidRenewal))).when(gateway).snapshot(anyString(), anyString());
+        String paidEvent = "evt_renewal_paid" + user.getId();
+        deliver(paidEvent, "invoice.paid");
+        process(paidEvent);
+        assertThat(userService.get(user.getId()).plan()).isEqualTo("PRO");
+        assertThat(billing.status(user.getId()).paidUntil()).isEqualTo(renewalEnd);
+    }
     @Test void sameOrNewCheckoutIntentReusesOnlyExistingHostedSession() {
         String key=key();var first=billing.checkout(user.getId(),key);
         assertThat(billing.checkout(user.getId(),key).url()).isEqualTo(first.url());

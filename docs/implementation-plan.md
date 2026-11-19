@@ -8,7 +8,7 @@ Leia **no início de cada tarefa**: fase atual, dono e status. Uma feature por v
 
 - **Responsável:** Gabriel, autor e responsável pelo projeto inteiro. Frontend em outro repositório; o trabalho aqui é restrito ao backend.
 - **V1:** funcional, conforme confirmação de Gabriel. Os checklists antigos estão desatualizados e foram preservados abaixo como histórico, sem declarar verificações individuais como realizadas nesta tarefa.
-- **Fase atual:** V2 / fase 5 em implementação, responsável Gabriel. Stripe, contrato de endpoints e regras de acesso aprovados em 16/11/2026; sandbox/dev opt-in. Fase 4 concluída; não há produção habilitada.
+- **Fase atual:** V2 / fase 5 concluída no sandbox em 19/11/2026, responsável Gabriel. Checkout, portal e webhook continuam em dev com ativação explícita. A próxima etapa e a liberação em produção ainda não foram iniciadas.
 - **Base técnica confirmada:** Java 25, Spring Boot 4.1.1, pacote `com.finance`.
 - A distribuição antiga entre Biel, Breno e João e as decisões de divisão de trabalho abaixo são históricas; o responsável atual por todas as fases é Gabriel.
 
@@ -600,13 +600,13 @@ Suporte ao piloto em 18/11/2026: WinGet não localizou Stripe.StripeCLI no ambie
 - [x] Fraude de assinatura, livemode/Connect/versão, tempo passado/futuro, preço/moeda/customer, repetição/concorrência/fencing, ordenação, reembolso/disputa, falhas remotas e exclusão testados. JWT já emitido bloqueado no Resource Server para usuário inativo, com teste real de /accounts.
 - [x] mvnw.cmd -U clean compile e regressão completa final (1.004 testes, zero falhas/erros/ignorados). OpenAPI/tipos reais com IA+cobrança sincronizados, build Next 16.4.6 e QA Chrome 390/1440 aprovados; 28 testes de API do frontend.
 - [x] Gabriel configurou sandbox, preço mensal, portal, variáveis de ambiente e webhook. Pagamento de teste aprovado com validade paga no FIN.
-- [ ] Concluir o restante do piloto Stripe sandbox conforme docs/stripe-sandbox.md. Sem cobrança real ou liberação de produção.
+- [x] Concluir o piloto Stripe sandbox conforme docs/stripe-sandbox.md. A etapa de produção permanece separada.
   - [x] Checkout aprovado, pagamento recusado, portal com cartão de teste padrão, cancelamento ao fim do período e reembolso integral verificados no sandbox.
-  - [ ] Confirmar na interface o retorno pelo botão de saída do checkout sem pagamento.
+  - [x] Saída pelo botão Voltar do Checkout real no Chrome. O navegador solicitou `/settings?billing=canceled` e o perfil autenticado da conta fictícia permaneceu `BASIC`.
   - [x] Stripe gerou e pagou uma segunda fatura de R$ 9,90 (`subscription_cycle`) com relógio de teste e cliente descartável sem vínculo local. O teste de integração com MySQL valida a validade do FIN com fatura de renovação recusada e depois paga.
   - [x] Renovação de ponta a ponta com cliente e conta local descartáveis. A Stripe pagou R$ 9,90 na segunda fatura, o listener entregou o `invoice.paid`, e o worker concluiu na primeira tentativa. O FIN manteve a validade original antes da virada e passou a usar 19/12/2026 após o início do período renovado. A conta fictícia foi criada para o piloto, sem login Google ou alteração das contas existentes.
   - [x] Na integração com MySQL, evento assinado repetido não duplica período e evento pago atrasado não restaura período reembolsado.
-  - [ ] Reenviar um evento real. O sandbox não tem destino de webhook cadastrado para reenvio; o listener local continua recebendo eventos novos.
+  - [x] Reentrega de `invoice.paid` real recebido do sandbox, pelo listener e encaminhador local com corpo e assinatura originais em memória. O FIN respondeu HTTP 200 às repetições, processou o evento uma vez, manteve uma única fatura e preservou a revogação após o reembolso. A renovação da assinatura fictícia usada no teste foi cancelada.
   - [x] Exclusão ponta a ponta autorizada para a conta descartável da renovação. Com assinatura ativa no sandbox, o perfil retornou HTTP 200 antes da exclusão, o endpoint de exclusão retornou 204 e o mesmo token recebeu 401 depois. A Stripe confirmou cliente excluído e assinatura cancelada. O banco local ficou sem usuário, vínculo, assinatura ou faturas da conta descartável e manteve as três outras assinaturas.
 
 ### Resultado da implementação da fase 5 (sandbox)
@@ -625,10 +625,10 @@ Suporte ao piloto em 18/11/2026: WinGet não localizou Stripe.StripeCLI no ambie
 
 - [x] Recuperar a V3 no banco de desenvolvimento local. O MySQL 9.1 do Wamp usava MyISAM como padrão e recusou um índice da V3. O perfil dev agora seleciona InnoDB por conexão. O Flyway removeu o registro da tentativa falha, aplicou a V3 original e validou as três migrations. As quatro tabelas de cobrança estão em InnoDB e o backend local iniciou com health `UP`.
 
-Código inicial e verificações automáticas concluídos em 16/11/2026. O checkout e a confirmação da primeira fatura de teste foram validados no sandbox de Gabriel. A fase permanece [~] até concluir o restante do piloto em docs/stripe-sandbox.md. Checkout, portal e webhook só em dev & !prod e opt-in. A liberação em produção segue fora desta etapa.
+Código inicial e verificações automáticas concluídos em 16/11/2026. Piloto concluído em 19/11/2026. Checkout, portal e webhook só em dev & !prod e opt-in. A liberação em produção segue fora desta etapa.
 
 Evidências: build/phase5-compile-final.log e phase5-regression-final.log (1.004 testes); phase5-contract-final.log (24 testes do contrato/SDK antes do último endurecimento JWT, revalidado na regressão final); phase5-frontend-api-final.log (28); phase5-frontend-build-qa-final.log e phase5-frontend-build-final.log; phase5-billing-ui-final.log, phase5-auth-ui.log e phase5-disabled-ui.log. Chrome controlado aprovou checkout/portal únicos sob clique duplo, preço/status do servidor, retorno sem grant, URL externa bloqueada, erros sem retry, chave preservada em falha incerta, estados loading/empty/error e sessão/login/logout/recarga. Capturas fictícias revisadas em build/phase5-ui.
 
 A primeira rodada encontrou Docker desligado e Clock ausente no teste de login; corrigidos antes das rodadas aprovadas. O primeiro snapshot Stripe omitia a feature de IA e as respostas 200 dos novos endpoints: corrigidas as anotações e o contexto de exportação; contrato final preserva as duas features e é gerado, não editado manualmente. O helper CDP recebeu espera de DOM inicial e tratamento apenas de cancelamentos de interceptação esperados ao navegar. Não se alteraram as regras para fazer os testes passar.
 
-Definição de pronto técnica: compilação/testes, regras/isolamento/concorrência, migration/validate e docs/OpenAPI aprovados. Sem alterações em .env ou nas mudanças visuais anteriores. Build final com ambos pilotos false e API localhost:8080; não substitui o pnpm dev/ambiente do usuário. Encerrar somente após Gabriel configurar e executar o piloto Stripe sandbox; produção permanece fora desta entrega.
+Definição de pronto técnica: compilação/testes, regras/isolamento/concorrência, migration/validate e docs/OpenAPI aprovados. A última suíte passou com 1.005 testes. Os dois testes finais do piloto usaram o código validado, sem mudanças na aplicação. Produção permanece fora desta entrega.

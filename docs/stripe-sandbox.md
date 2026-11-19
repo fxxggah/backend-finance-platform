@@ -58,7 +58,7 @@ Ativar somente após preencher todas as configurações: chave live ou configura
 - Para renovar sem esperar um mês, usar ferramentas/test clocks do sandbox apenas com dados fictícios e conferir o período efetivamente pago. Não alterar o Clock do servidor de produção ou datas do banco para fingir confirmação.
 - Exclusão de conta: primeiro bloquear login/refresh/JWT já emitido em todos os módulos; depois a Stripe cancela assinaturas ao excluir o customer remoto; só então apagar localmente. Falha remota retorna 503 e mantém exclusão pendente, retomada pelo worker. Conferir no sandbox que a recorrência terminou. Não declarar exclusão concluída pelo simples clique.
 
-O agente não realizou login, criação de produto/cliente, assinatura ou cobrança no Stripe real/sandbox da conta de Gabriel. O piloto com a conta Stripe é pendência manual para encerrar a fase, não substituído pelos testes controlados.
+O piloto do sandbox foi concluído em 19/11/2026. O reenvio foi validado pela reentrega local de um evento real recebido pelo Stripe CLI, com o corpo e a assinatura originais preservados em memória. O reenvio pelo Workbench é uma operação separada e exige um destino cadastrado. O plano, as verificações de ponta a ponta e os casos cobertos pelos testes automatizados estão registrados em docs/implementation-plan.md.
 
 ## Recuperação e observabilidade local
 

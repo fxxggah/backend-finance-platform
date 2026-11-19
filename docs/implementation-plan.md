@@ -607,7 +607,7 @@ Suporte ao piloto em 18/11/2026: WinGet não localizou Stripe.StripeCLI no ambie
   - [x] Renovação de ponta a ponta com cliente e conta local descartáveis. A Stripe pagou R$ 9,90 na segunda fatura, o listener entregou o `invoice.paid`, e o worker concluiu na primeira tentativa. O FIN manteve a validade original antes da virada e passou a usar 19/12/2026 após o início do período renovado. A conta fictícia foi criada para o piloto, sem login Google ou alteração das contas existentes.
   - [x] Na integração com MySQL, evento assinado repetido não duplica período e evento pago atrasado não restaura período reembolsado.
   - [ ] Reenviar um evento real. O sandbox não tem destino de webhook cadastrado para reenvio; o listener local continua recebendo eventos novos.
-  - [ ] Validar exclusão ponta a ponta com conta explicitamente descartável e recorrência ativa no sandbox.
+  - [x] Exclusão ponta a ponta autorizada para a conta descartável da renovação. Com assinatura ativa no sandbox, o perfil retornou HTTP 200 antes da exclusão, o endpoint de exclusão retornou 204 e o mesmo token recebeu 401 depois. A Stripe confirmou cliente excluído e assinatura cancelada. O banco local ficou sem usuário, vínculo, assinatura ou faturas da conta descartável e manteve as três outras assinaturas.
 
 ### Resultado da implementação da fase 5 (sandbox)
 

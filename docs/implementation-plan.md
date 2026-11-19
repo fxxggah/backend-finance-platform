@@ -604,6 +604,10 @@ Suporte ao piloto em 18/11/2026: WinGet não localizou Stripe.StripeCLI no ambie
 
 ### Resultado da implementação da fase 5 (sandbox)
 
+- [x] Reembolso integral de R$ 9,90 em uma assinatura de teste com renovação cancelada. Stripe retornou `succeeded`, o FIN processou `charge.refunded` na primeira tentativa, revogou o período reembolsado e a conta ficou sem PRO. Os dois outros períodos pagos foram preservados.
+
+- [x] Portal Stripe validado com dois cartões de teste cadastrados e Visa final 4242 como padrão. A fatura continuou paga e o portal mostrou o cancelamento agendado para 18/12/2026.
+
 - [x] Gabriel confirmou a recusa do cartão no checkout do sandbox. O checkout foi registrado localmente e a conta de teste permaneceu sem período pago e sem PRO manual.
 
 - Em 19/11/2026, Gabriel agendou o cancelamento no portal Stripe de teste. O evento foi processado e o acesso até 18/12 foi preservado. Consulta à Stripe confirmou `cancel_at` no fim do período, mesmo com `cancel_at_period_end=false`. O gateway passou a reconhecer as duas representações. Falta confirmar o aviso no FIN após reiniciar e sincronizar.

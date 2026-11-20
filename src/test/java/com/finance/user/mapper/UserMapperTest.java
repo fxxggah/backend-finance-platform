@@ -5,9 +5,39 @@ import com.finance.user.entity.User;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+import java.time.Clock;
+import java.time.Instant;
+import java.time.ZoneOffset;
+
 import static org.assertj.core.api.Assertions.assertThat;
 
 class UserMapperTest {
+
+    @Test
+    void exposesEffectivePaidOrManualValidityAndRequiresAnActiveUser() {
+        Instant now = Instant.parse("2026-11-20T12:00:00Z");
+        Clock clock = Clock.fixed(now, ZoneOffset.UTC);
+        Instant first = now.plusSeconds(60);
+        Instant last = now.plusSeconds(120);
+        User user = new User("synthetic", "synthetic@example.test", "Synthetic", null);
+
+        assertPlan(UserMapper.toResponse(user, clock, now.minusSeconds(1)), "BASIC", now.minusSeconds(1));
+        assertPlan(UserMapper.toResponse(user, clock, now), "BASIC", now);
+        assertPlan(UserMapper.toResponse(user, clock, first), "PRO", first);
+
+        user.setProExpiresAt(first);
+        assertPlan(UserMapper.toResponse(user, clock, last), "PRO", last);
+        user.setProExpiresAt(last);
+        assertPlan(UserMapper.toResponse(user, clock, first), "PRO", last);
+
+        user.setActive(false);
+        assertPlan(UserMapper.toResponse(user, clock, first), "BASIC", last);
+    }
+
+    private static void assertPlan(UserResponse response, String plan, Instant expiration) {
+        assertThat(response.plan()).isEqualTo(plan);
+        assertThat(response.proExpiresAt()).isEqualTo(expiration);
+    }
 
     @Test
     void proExpiresExactlyAtClockInstantAndInactiveUserIsNeverPro() {

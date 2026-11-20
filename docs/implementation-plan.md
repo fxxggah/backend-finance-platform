@@ -534,7 +534,7 @@ Ordem: `Account` → `Category` → `Transaction`.
 - [ ] `invoiceReference` nos limites (dia do fechamento e dia seguinte)
 - [ ] Mudar `closingDay` não move compras antigas
 - [ ] Parcelas: soma = total, resto na última, fim de mês
-- [ ] Status da fatura nos 5 estados; pagamento acima do total → 422; pagamento em fatura `OPEN` → 422
+- [x] Status da fatura nos cinco estados; pagamento acima do saldo devedor → 422; antecipação até o saldo devedor em fatura `OPEN` preserva o estado `OPEN`. Ver regra aprovada no ajuste de pagamento antecipado e matriz abaixo.
 - [ ] Transferência e pagamento de fatura não alteram receitas/despesas do dashboard
 - [ ] Saldo da conta bate com a fórmula após editar e excluir
 - [ ] `PeriodResolver`: quinzena, semana ISO, viradas; período anterior correto
@@ -658,3 +658,46 @@ Responsável: Gabriel. Ajustes executados após o piloto da V2 em sandbox.
 - [ ] Confirmar login com credencial real do Google no ambiente de homologação.
 
 Evidências do backend em `build/predeploy-compile-final.log`, `build/predeploy-suite-final.log`, `build/predeploy-auth-final.log` e `build/predeploy-openapi.log`.
+
+## Plano de testes unitários do backend — fases 0 e 1
+
+Responsável: Gabriel. Fase 0 mapeia o checklist da V1 e as regras críticas da V2 após o piloto sandbox. Fase 1 cobre JWT interno e validade efetiva de PRO. As fases 2 a 4 abaixo indicam a fila de implementação.
+
+### Fase 0 · Matriz de regras e cobertura
+
+U indica teste unitário. I indica evidência com Spring/MySQL. As referências indicam o que o teste prova. Uma cobertura parcial mantém explícito o cenário ainda sem evidência direta.
+
+| Regra | Cenário e evidência | Lacuna ou ação |
+|---|---|---|
+| Isolamento multiusuário | U: `AccountServiceTest`, `CategoryServiceTest`, `TransactionServiceTest`, `CreditCardServiceTest`, `TransferServiceTest` e `GoalServiceTest` exercitam buscas pelo dono e rejeição de referências indisponíveis. I: testes de repositório por dono, `InvoicePaymentIntegrationTest` rejeita cartão/conta de outro usuário e `TransactionDraftIntegrationTest` cobre catálogo por usuário. | Cobertura por camada. Rastrear referências cruzadas restantes no nível HTTP durante verificação de integração. |
+| Uma única origem de pagamento | U: `TransactionServiceTest#create_shouldThrow_whenNeitherAccountNorCard` e `create_shouldThrow_whenBothAccountAndCard`. | O domínio e o modelo preveem um `CHECK`. A V1 cria duas FKs opcionais e as migrations seguintes não adicionam o `CHECK`. Alinhar a correção de schema e então provar rejeição das duas combinações inválidas no MySQL. |
+| Cartão de crédito só para despesa | U: `TransactionServiceTest#create_shouldThrow_whenIncomeOnCreditCard`. | A criação pela API tem cobertura. O `CHECK` desta regra também consta no modelo e falta nas migrations. |
+| Compra entra na fatura do fechamento correto | U: `TransactionServiceTest` cobre o dia de fechamento, o dia seguinte e dezembro → janeiro. `InvoiceServiceTest` valida os estados usando datas simuladas. | Fase 4: testar o cálculo real de vencimento no mesmo mês ou seguinte, inclusive igualdade e dezembro → janeiro. Em `CreditCardServiceTest#response_shouldResolveCurrentInvoiceReference`, substituir a expectativa que repete o cálculo com o dia corrente por referências explícitas de fechamento. |
+| Compra antiga conserva sua referência ao alterar fechamento | U: `CreditCardServiceTest#update_shouldUpdateAllFields` confirma os dias atualizados no cartão. | Cobertura parcial: falta cenário que persista a compra, altere o fechamento e releia sua referência original. |
+| Parcelas preservam total e datas | U: `TransactionServiceTest` verifica centavos restantes na última parcela, fim do mês, virada do ano e rejeição de parcelas com valor zero. | Coberto nas fronteiras mapeadas. |
+| Estados da fatura e antecipação | U: `InvoiceServiceTest` confirma cinco estados, rejeita excesso e mantém `OPEN` após antecipação. I: `InvoicePaymentRepositoryTest#advancePayment_shouldPersistAndUpdateFinancialSummaries` prova saldo, limite e novas compras após pagar. | Coberto conforme a regra de antecipação aprovada. |
+| Pagamento concorrente e exclusão com vínculo exato | I: `InvoicePaymentIntegrationTest` prova saldo confirmado entre pagamentos concorrentes e exclusão vinculada a usuário/cartão/mês, preservando o pagamento com URL incorreta. | Conservar a evidência transacional. |
+| Transferências e pagamentos ficam fora do resultado do dashboard | U: `DashboardServiceTest` confere o resumo calculado com totais de transações. I: `TransactionRepositoryTest` confere filtros e agregações; `InvoicePaymentRepositoryTest` demonstra o efeito da antecipação no saldo da conta. | Cobertura parcial: falta cenário com compra, transferência e pagamento persistidos que compare a receita e a despesa do dashboard antes e depois. |
+| Saldo da conta reflete editar e excluir | U: `AccountServiceTest` confere a fórmula de saldo a partir dos repositórios; `TransactionServiceTest` e `TransferServiceTest` verificam as mutações. I: `InvoicePaymentIntegrationTest#correctUrlDeletesOnlyThePaymentAndRestoresAccountBalance` cobre exclusão do pagamento. | Cobertura parcial: falta comparar o saldo recalculado após editar/excluir transação e transferência com persistência real. |
+| Períodos e evolução do dashboard | U: `PeriodResolverTest` cobre semana ISO, quinzena, comparação anterior e virada em São Paulo. `DashboardServiceTest` cobre agrupamentos por dia/semana/mês e pontos com zero. | Fase 4: conferir os valores dos baldes vazios entre períodos com movimento em todas as granularidades. |
+| Metas de economia e desempenho | U: `GoalServiceTest` cobre retirada até zero e rejeição de saldo negativo, rejeição de contribuição fora de `SAVINGS`, limites de 80%/100%, encerramento e virada em São Paulo. | Preservar cenários de fronteira e asserções de saldo. |
+| Simulações | U: `SimulationServiceTest` cobre juros zero, última parcela reduzida, consistência dos totais, pagamento inferior/igual aos juros e limite de meses. | Coberto nas fronteiras mapeadas. |
+| Reuso e rotação de refresh token | U: `AuthServiceTest`; I: `AuthRefreshIntegrationTest` comprova revogação persistida após reuso, rotação concorrente e rollback em falha inesperada. | Conservar a prova de commit/rollback no MySQL. |
+| Login Google | Validador real com certificados sintéticos em loopback no `GoogleTokenVerifierTest`; I: `AuthRefreshIntegrationTest` cobre sessão persistida e nenhuma persistência em falha. | Login com conta real em homologação segue no checklist pré-deploy. |
+| JWT interno e conta ativa | U: `JwtServiceTest` valida emissão; `SecurityConfigJwtDecoderTest` usa o decoder de produção com repositório simulado. I: `BillingIntegrationTest` bloqueia em `/accounts` o JWT já emitido após desativação. | Fase 1 cobre assinatura, expiração, subject, revogação por conta inativa e indisponibilidade da consulta. |
+| Composição de PRO manual e pago | U: `ProAccessServiceTest` cobre valores ausentes, empate e ambas as ordens; `UserMapperTest` verifica plano e validade exibidos na expiração exata. I: `BillingIntegrationTest` cobre período futuro e validade paga confirmada. | Fase 1 cobre a escolha da maior validade e a aplicação da regra de conta ativa no perfil. |
+| Checkout, webhook, renovação e acesso pago | `StripeBillingGatewayTest` cobre o contrato do adaptador. I: `BillingIntegrationTest` cobre evento duplicado, falha de renovação, reembolso, indisponibilidade e reconciliação. | Fase 2: testar em unidade expiração de checkout, conflitos de evento, tentativa obsoleta e continuidade do worker após erro. |
+| Exclusão de conta com cobrança | U: `UserDataDeletionServiceTest` cobre ordem e escopo da exclusão local. I: `BillingIntegrationTest` prova bloqueio imediato e conclusão após cancelamento remoto. | Fase 2: cobrir as ramificações do serviço que escolhe exclusão local ou aguarda o Stripe. |
+| Cota, lease, idempotência e cooldown de IA | I: `AiQuotaIntegrationTest` cobre acesso, paralelismo, repetição, expiração, cooldown e viradas do dia pessoal/global. | Fase 3: testar em unidade os limites da chave, o lease no instante exato, o maior cooldown e o `Retry-After`. |
+| Rascunho por voz e uso de cota | U: `TransactionDraftServiceTest` cobre PRO antes do decoder, áudio inválido sem reserva, defaults e preservação de data explícita; `ExtractionParserTest` cobre o schema. I: `TransactionDraftIntegrationTest` cobre confirmação e isolamento. | Fase 3: verificar a finalização da tentativa nas falhas após a reserva. |
+
+- [x] Mapear os 15 itens do checklist da V1 e as regras críticas de autenticação, IA e cobrança da V2.
+- [x] Registrar as lacunas por camada e alinhar a linha histórica sobre faturas abertas à antecipação já aprovada.
+
+### Fase 1 · JWT e acesso PRO
+
+- [x] Exercitar emissão HS256 e o decoder real do Resource Server com material de assinatura exclusivamente sintético e sem contexto Spring.
+- [x] Verificar rejeição por assinatura incorreta, expiração, subject ausente/inválido, desativação, repositório indisponível e falha de consulta.
+- [x] Verificar PRO manual e pago nos casos nulos, empatados, maior validade em ambas as ordens e usuário inativo, com fronteira exata da expiração.
+- [x] Confirmar que os testes detectam três regressões em fontes temporárias: aceitar JWT de conta inativa, escolher a menor validade e manter PRO no instante da expiração. As quatro falhas de asserção esperadas estão em `build/phase01-mutation.log`.
+- [x] Compilar com Java 25 e `mvnw.cmd -U clean compile`. Passaram os 25 casos focados (21 novos) e os 1.047 da regressão completa com MySQL, com zero falhas, erros ou ignorados. Evidências em `build/phase01-compile.log`, `build/phase01-focused.log` e `build/phase01-suite.log`.

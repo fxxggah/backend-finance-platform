@@ -17,6 +17,8 @@ import com.finance.transaction.repository.TransactionRepository;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
@@ -386,6 +388,33 @@ class DashboardServiceTest {
             assertThat(point.expense()).isEqualByComparingTo("0");
             assertThat(point.balance()).isEqualByComparingTo("0");
         });
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+            "DAY,   2026-12-30, 2027-01-01, 2026-12-31, 2026-12-31",
+            "WEEK,  2026-12-27, 2027-01-04, 2026-12-28, 2027-01-03",
+            "MONTH, 2026-11-30, 2027-01-01, 2026-12-01, 2026-12-31"
+    })
+    void getEvolution_fillsEmptyPeriodBetweenMovements(Granularity granularity, LocalDate from, LocalDate to,
+                                                       LocalDate emptyFrom, LocalDate emptyTo) {
+        var range = new PeriodRange(from, to);
+        when(periodResolver.resolveCurrent(Period.CUSTOM, null, from, to)).thenReturn(range);
+        when(periodResolver.resolveGranularity(range)).thenReturn(granularity);
+        when(transactionRepository.findEvolutionData(USER_ID, from, to, null, null))
+                .thenReturn(rows(row(from, INCOME, "100.01"), row(to, EXPENSE, "25.03")));
+
+        var points = dashboardService.getEvolution(USER_ID, Period.CUSTOM, null, from, to, null, null).points();
+
+        assertThat(points).hasSize(3);
+        assertThat(points.getFirst().balance()).isEqualByComparingTo("100.01");
+        assertThat(points.getLast().balance()).isEqualByComparingTo("-25.03");
+        var empty = points.get(1);
+        assertThat(empty.from()).isEqualTo(emptyFrom);
+        assertThat(empty.to()).isEqualTo(emptyTo);
+        assertThat(empty.income()).isZero();
+        assertThat(empty.expense()).isZero();
+        assertThat(empty.balance()).isZero();
     }
 
     @Test

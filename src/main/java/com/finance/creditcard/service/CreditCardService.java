@@ -17,8 +17,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.time.Clock;
 import java.time.LocalDate;
-import java.time.ZoneId;
 import java.util.List;
 
 @Service
@@ -30,6 +30,7 @@ public class CreditCardService {
     private final InvoicePaymentRepository paymentRepository;
     private final InvoiceService invoiceService;
     private final EntityManager entityManager;
+    private final Clock clock;
 
     @Transactional(readOnly = true)
     public List<CreditCardResponse> list(Long userId) {
@@ -104,7 +105,7 @@ public class CreditCardService {
         BigDecimal availableLimit = card.getCreditLimit().subtract(usedLimit);
 
         // Identificação da "Current Invoice" (fatura atual / em aberto baseada no dia de hoje)
-        LocalDate today = LocalDate.now(ZoneId.of("America/Sao_Paulo"));
+        LocalDate today = LocalDate.now(clock);
         LocalDate currentReference = today.withDayOfMonth(1);
         if (today.getDayOfMonth() > card.getClosingDay()) {
             currentReference = currentReference.plusMonths(1);

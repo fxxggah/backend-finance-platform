@@ -13,14 +13,18 @@ import com.finance.transaction.repository.TransactionRepository;
 import com.finance.user.entity.User;
 import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.mockito.ArgumentCaptor;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.math.BigDecimal;
+import java.time.Clock;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.List;
@@ -61,8 +65,18 @@ class CreditCardServiceTest {
     @Mock
     private EntityManager entityManager;
 
-    @InjectMocks
     private CreditCardService creditCardService;
+    private static final ZoneId SAO_PAULO = ZoneId.of("America/Sao_Paulo");
+
+    @BeforeEach
+    void setUp() {
+        creditCardService = serviceAt(Instant.parse("2026-10-10T12:00:00Z"));
+    }
+
+    private CreditCardService serviceAt(Instant instant) {
+        return new CreditCardService(creditCardRepository, transactionRepository, paymentRepository,
+                invoiceService, entityManager, Clock.fixed(instant, SAO_PAULO));
+    }
 
     // ---------- helpers ----------
 
@@ -335,26 +349,21 @@ class CreditCardServiceTest {
         assertThat(response.availableLimit()).isEqualByComparingTo("2999.50");
     }
 
-    @Test
+    @ParameterizedTest
+    @CsvSource({
+            "2026-12-10T02:59:59Z, 2026-12-01",
+            "2026-12-11T02:59:59Z, 2026-12-01",
+            "2026-12-11T03:00:00Z, 2027-01-01"
+    })
     @DisplayName("toResponse: deve consultar a fatura atual com referência no dia 1 do mês correto")
-    void response_shouldResolveCurrentInvoiceReference() {
+    void response_shouldResolveCurrentInvoiceReference(Instant instant, LocalDate expectedReference) {
         CreditCard card = card(CARD_ID, "Nubank");
         when(creditCardRepository.findAllByUserIdAndArchivedFalse(USER_ID)).thenReturn(List.of(card));
         stubResponseData(CARD_ID, "0.00", "0.00");
 
-        creditCardService.list(USER_ID);
+        serviceAt(instant).list(USER_ID);
 
-        ArgumentCaptor<LocalDate> captor = ArgumentCaptor.forClass(LocalDate.class);
-        verify(invoiceService).getInvoiceSummary(eq(card), captor.capture());
-
-        // Após o dia de fechamento, a fatura atual é a do mês seguinte.
-        LocalDate today = LocalDate.now(ZoneId.of("America/Sao_Paulo"));
-        LocalDate expected = today.withDayOfMonth(1);
-        if (today.getDayOfMonth() > card.getClosingDay()) {
-            expected = expected.plusMonths(1);
-        }
-        assertThat(captor.getValue().getDayOfMonth()).isEqualTo(1);
-        assertThat(captor.getValue()).isEqualTo(expected);
+        verify(invoiceService).getInvoiceSummary(card, expectedReference);
     }
 
     @Test

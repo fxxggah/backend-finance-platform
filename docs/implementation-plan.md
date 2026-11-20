@@ -532,13 +532,13 @@ Ordem: `Account` → `Category` → `Transaction`.
 - [ ] XOR de `account`/`creditCard` rejeitado na service e no banco
 - [ ] Cartão rejeita `INCOME`
 - [ ] `invoiceReference` nos limites (dia do fechamento e dia seguinte)
-- [ ] Mudar `closingDay` não move compras antigas
+- [x] Mudar `closingDay` não move compras antigas
 - [ ] Parcelas: soma = total, resto na última, fim de mês
 - [x] Status da fatura nos cinco estados; pagamento acima do saldo devedor → 422; antecipação até o saldo devedor em fatura `OPEN` preserva o estado `OPEN`. Ver regra aprovada no ajuste de pagamento antecipado e matriz abaixo.
-- [ ] Transferência e pagamento de fatura não alteram receitas/despesas do dashboard
-- [ ] Saldo da conta bate com a fórmula após editar e excluir
+- [x] Transferência e pagamento de fatura não alteram receitas/despesas do dashboard
+- [x] Saldo da conta bate com a fórmula após editar e excluir
 - [ ] `PeriodResolver`: quinzena, semana ISO, viradas; período anterior correto
-- [ ] Evolução preenche baldes vazios com zero
+- [x] Evolução preenche baldes vazios com zero
 - [ ] Meta `SAVINGS`: retirada não deixa negativo; contribuição em `INCOME`/`EXPENSE` → 422
 - [ ] Meta `EXPENSE`: `IN_PROGRESS`, `WARNING`, `EXCEEDED` e `ACHIEVED` ao encerrar
 - [ ] Simulação de dívida com pagamento ≤ juros → 422
@@ -659,7 +659,7 @@ Responsável: Gabriel. Ajustes executados após o piloto da V2 em sandbox.
 
 Evidências do backend em `build/predeploy-compile-final.log`, `build/predeploy-suite-final.log`, `build/predeploy-auth-final.log` e `build/predeploy-openapi.log`.
 
-## Plano de testes unitários do backend — fases 0 a 3
+## Plano de testes unitários do backend — fases 0 a 4
 
 Responsável: Gabriel. Fase 0 mapeia o checklist da V1 e as regras críticas da V2 após o piloto sandbox. Fase 1 cobre JWT e validade efetiva de PRO. Fases 2 e 3 cobrem cobrança, exclusão de conta, cotas e rascunho. A revisão das regras financeiras da V1 fica na fase 4.
 
@@ -672,14 +672,14 @@ U indica teste unitário. I indica evidência com Spring/MySQL. As referências 
 | Isolamento multiusuário | U: `AccountServiceTest`, `CategoryServiceTest`, `TransactionServiceTest`, `CreditCardServiceTest`, `TransferServiceTest` e `GoalServiceTest` exercitam buscas pelo dono e rejeição de referências indisponíveis. I: testes de repositório por dono, `InvoicePaymentIntegrationTest` rejeita cartão/conta de outro usuário e `TransactionDraftIntegrationTest` cobre catálogo por usuário. | Cobertura por camada. Rastrear referências cruzadas restantes no nível HTTP durante verificação de integração. |
 | Uma única origem de pagamento | U: `TransactionServiceTest#create_shouldThrow_whenNeitherAccountNorCard` e `create_shouldThrow_whenBothAccountAndCard`. | O domínio e o modelo preveem um `CHECK`. A V1 cria duas FKs opcionais e as migrations seguintes não adicionam o `CHECK`. Alinhar a correção de schema e então provar rejeição das duas combinações inválidas no MySQL. |
 | Cartão de crédito só para despesa | U: `TransactionServiceTest#create_shouldThrow_whenIncomeOnCreditCard`. | A criação pela API tem cobertura. O `CHECK` desta regra também consta no modelo e falta nas migrations. |
-| Compra entra na fatura do fechamento correto | U: `TransactionServiceTest` cobre o dia de fechamento, o dia seguinte e dezembro → janeiro. `InvoiceServiceTest` valida os estados usando datas simuladas. | Fase 4: testar o cálculo real de vencimento no mesmo mês ou seguinte, inclusive igualdade e dezembro → janeiro. Em `CreditCardServiceTest#response_shouldResolveCurrentInvoiceReference`, substituir a expectativa que repete o cálculo com o dia corrente por referências explícitas de fechamento. |
-| Compra antiga conserva sua referência ao alterar fechamento | U: `CreditCardServiceTest#update_shouldUpdateAllFields` confirma os dias atualizados no cartão. | Cobertura parcial: falta cenário que persista a compra, altere o fechamento e releia sua referência original. |
+| Compra entra na fatura do fechamento correto | U: `TransactionServiceTest` cobre compra no dia do fechamento e no seguinte. `CreditCardDateUtilTest` cobre vencimento antes, no mesmo dia ou depois do fechamento, inclusive dezembro → janeiro. `CreditCardServiceTest#response_shouldResolveCurrentInvoiceReference` usa datas explícitas na virada do fechamento em São Paulo. | Coberto na fase 4. |
+| Compra antiga conserva sua referência ao alterar fechamento | I: `InvoicePaymentIntegrationTest#changingClosingDayKeepsExistingPurchaseInItsOriginalInvoice` relê a referência persistida e compara uma compra nova de mesma data após alterar o fechamento. | Coberto na fase 4. |
 | Parcelas preservam total e datas | U: `TransactionServiceTest` verifica centavos restantes na última parcela, fim do mês, virada do ano e rejeição de parcelas com valor zero. | Coberto nas fronteiras mapeadas. |
 | Estados da fatura e antecipação | U: `InvoiceServiceTest` confirma cinco estados, rejeita excesso e mantém `OPEN` após antecipação. I: `InvoicePaymentRepositoryTest#advancePayment_shouldPersistAndUpdateFinancialSummaries` prova saldo, limite e novas compras após pagar. | Coberto conforme a regra de antecipação aprovada. |
 | Pagamento concorrente e exclusão com vínculo exato | I: `InvoicePaymentIntegrationTest` prova saldo confirmado entre pagamentos concorrentes e exclusão vinculada a usuário/cartão/mês, preservando o pagamento com URL incorreta. | Conservar a evidência transacional. |
-| Transferências e pagamentos ficam fora do resultado do dashboard | U: `DashboardServiceTest` confere o resumo calculado com totais de transações. I: `TransactionRepositoryTest` confere filtros e agregações; `InvoicePaymentRepositoryTest` demonstra o efeito da antecipação no saldo da conta. | Cobertura parcial: falta cenário com compra, transferência e pagamento persistidos que compare a receita e a despesa do dashboard antes e depois. |
-| Saldo da conta reflete editar e excluir | U: `AccountServiceTest` confere a fórmula de saldo a partir dos repositórios; `TransactionServiceTest` e `TransferServiceTest` verificam as mutações. I: `InvoicePaymentIntegrationTest#correctUrlDeletesOnlyThePaymentAndRestoresAccountBalance` cobre exclusão do pagamento. | Cobertura parcial: falta comparar o saldo recalculado após editar/excluir transação e transferência com persistência real. |
-| Períodos e evolução do dashboard | U: `PeriodResolverTest` cobre semana ISO, quinzena, comparação anterior e virada em São Paulo. `DashboardServiceTest` cobre agrupamentos por dia/semana/mês e pontos com zero. | Fase 4: conferir os valores dos baldes vazios entre períodos com movimento em todas as granularidades. |
+| Transferências e pagamentos ficam fora do resultado do dashboard | U: `DashboardServiceTest` confere os totais de transações. I: `InvoicePaymentIntegrationTest#transfersAndInvoicePaymentsChangeAccountBalanceButDoNotChangeDashboard` compara o resumo e confere o saldo das duas contas com dados persistidos. | Coberto na fase 4. |
+| Saldo da conta reflete editar e excluir | U: `AccountServiceTest` confere a fórmula. I: `InvoicePaymentIntegrationTest` valida recomposição após excluir pagamento e compara os dois saldos após editar e excluir transação e transferência. | Coberto na fase 4. |
+| Períodos e evolução do dashboard | U: `PeriodResolverTest` cobre semana ISO, quinzena, comparação anterior e virada em São Paulo. `DashboardServiceTest#getEvolution_fillsEmptyPeriodBetweenMovements` verifica zero entre movimentos e os limites dos intervalos em dia, semana e mês. | Coberto na fase 4. |
 | Metas de economia e desempenho | U: `GoalServiceTest` cobre retirada até zero e rejeição de saldo negativo, rejeição de contribuição fora de `SAVINGS`, limites de 80%/100%, encerramento e virada em São Paulo. | Preservar cenários de fronteira e asserções de saldo. |
 | Simulações | U: `SimulationServiceTest` cobre juros zero, última parcela reduzida, consistência dos totais, pagamento inferior/igual aos juros e limite de meses. | Coberto nas fronteiras mapeadas. |
 | Reuso e rotação de refresh token | U: `AuthServiceTest`; I: `AuthRefreshIntegrationTest` comprova revogação persistida após reuso, rotação concorrente e rollback em falha inesperada. | Conservar a prova de commit/rollback no MySQL. |
@@ -715,3 +715,12 @@ U indica teste unitário. I indica evidência com Spring/MySQL. As referências 
 - [x] Exercitar falhas depois da reserva no provedor, parser, revalidação do catálogo e finalização. Verificar o ID da reserva, a liberação como falha e a preservação do erro original quando a limpeza também falha.
 - [x] Confirmar que os testes detectam três regressões em fontes temporárias: aceitar conclusão de evento com token obsoleto, encurtar cooldown vigente e ignorar a limitação do provedor ao finalizar uma tentativa. As falhas de asserção esperadas estão em `build/phase23-mutation.log`.
 - [x] Validar as duas fases com Java 25 e `mvnw.cmd -U clean compile`. Passaram os 58 casos focados (50 novos) e os 1.097 da regressão completa com MySQL, com zero falhas, erros ou ignorados. Evidências em `build/phase23-compile.log`, `build/phase23-focused.log` e `build/phase23-suite.log`.
+
+### Fase 4 · Regras financeiras da V1
+
+- [x] Testar vencimento antes, no mesmo dia ou após o dia de fechamento, com virada do ano. Usar o `Clock` do backend no cálculo da fatura atual para testar o fechamento com instantes fixos em São Paulo.
+- [x] Conferir zeros e limites inclusivos nos intervalos sem movimento entre receitas e despesas, nas três granularidades do dashboard.
+- [x] Provar com MySQL que mudar a data do fechamento preserva a referência antiga, que transferências e pagamentos alteram o saldo sem entrar no resumo do dashboard e que editar/excluir transações e transferências recompõe os saldos.
+- [x] Revisar as asserções existentes de centavos nas parcelas, pagamento acima do saldo devedor, retirada além do saldo da meta e amortização insuficiente. Os casos atuais cobrem os valores-limite e os efeitos das rejeições.
+- [x] Confirmar que os testes falham se a fatura virar no dia do fechamento, se vencimento igual ao fechamento ficar no mesmo mês ou se a evolução omitir períodos vazios. Evidência em `build/unit-phase4-mutation.log`.
+- [x] Compilar com Java 25 e `mvnw.cmd -U clean compile`. Passaram os 94 casos focados e os 1.110 casos da regressão completa com MySQL, com zero falhas, erros ou ignorados. A fase acrescentou 10 casos unitários e 3 de integração. Evidências em `build/unit-phase4-compile.log`, `build/unit-phase4-focused.log` e `build/unit-phase4-suite.log`.

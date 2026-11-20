@@ -2,19 +2,28 @@ package com.finance.creditcard;
 
 import com.finance.account.entity.Account;
 import com.finance.account.repository.AccountRepository;
+import com.finance.account.service.AccountService;
 import com.finance.category.entity.Category;
 import com.finance.category.repository.CategoryRepository;
 import com.finance.common.enums.AccountType;
+import com.finance.common.enums.Period;
 import com.finance.common.enums.TransactionType;
 import com.finance.creditcard.dto.request.InvoicePaymentRequest;
+import com.finance.creditcard.dto.request.CreditCardRequest;
 import com.finance.creditcard.entity.CreditCard;
 import com.finance.creditcard.entity.InvoicePayment;
 import com.finance.creditcard.repository.CreditCardRepository;
 import com.finance.creditcard.repository.InvoicePaymentRepository;
 import com.finance.creditcard.service.InvoiceService;
+import com.finance.creditcard.service.CreditCardService;
+import com.finance.dashboard.service.DashboardService;
 import com.finance.security.JwtService;
 import com.finance.transaction.entity.Transaction;
+import com.finance.transaction.dto.request.TransactionRequest;
 import com.finance.transaction.repository.TransactionRepository;
+import com.finance.transaction.service.TransactionService;
+import com.finance.transfer.dto.request.TransferRequest;
+import com.finance.transfer.service.TransferService;
 import com.finance.user.entity.User;
 import com.finance.user.repository.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -71,6 +80,11 @@ class InvoicePaymentIntegrationTest {
     @Autowired TransactionRepository transactions;
     @Autowired InvoicePaymentRepository payments;
     @Autowired InvoiceService invoices;
+    @Autowired CreditCardService creditCards;
+    @Autowired TransactionService transactionService;
+    @Autowired TransferService transfers;
+    @Autowired DashboardService dashboard;
+    @Autowired AccountService balances;
     @Autowired PlatformTransactionManager transactionManager;
     private User owner;
     private User other;
@@ -78,6 +92,7 @@ class InvoicePaymentIntegrationTest {
     private CreditCard card;
     private CreditCard anotherCard;
     private CreditCard othersCard;
+    private Category expenseCategory;
 
     @BeforeEach
     void setup() {
@@ -87,10 +102,10 @@ class InvoicePaymentIntegrationTest {
         card = card(owner, "Cartão");
         anotherCard = card(owner, "Outro cartão");
         othersCard = card(other, "Cartão de outro usuário");
-        Category category = categories.saveAndFlush(new Category(owner, "Compras", TransactionType.EXPENSE, null, null));
+        expenseCategory = categories.saveAndFlush(new Category(owner, "Compras", TransactionType.EXPENSE, null, null));
         var purchase = new Transaction();
         purchase.setUser(owner);
-        purchase.setCategory(category);
+        purchase.setCategory(expenseCategory);
         purchase.setCreditCard(card);
         purchase.setType(TransactionType.EXPENSE);
         purchase.setAmount(new BigDecimal("100.00"));
@@ -219,6 +234,85 @@ class InvoicePaymentIntegrationTest {
         }
         assertThat(payments.sumPaymentsByAccountId(account.getId())).isZero();
         assertThat(payments.sumPaymentsByAccountId(othersAccount.getId())).isZero();
+    }
+
+    @Test
+    void changingClosingDayKeepsExistingPurchaseInItsOriginalInvoice() {
+        Long userId = owner.getId();
+        var input = new TransactionRequest(TransactionType.EXPENSE, new BigDecimal("10.11"), expenseCategory.getId(),
+                LocalDate.of(2026, 11, 10), null, null, null, card.getId(), 1);
+        var original = transactionService.create(userId, input);
+
+        creditCards.update(userId, card.getId(),
+                new CreditCardRequest(card.getName(), card.getCreditLimit(), 5, card.getDueDay(), null, null));
+        var later = transactionService.create(userId, input);
+
+        assertThat(transactions.findById(original.id()).orElseThrow().getInvoiceReference()).isEqualTo(MONTH);
+        assertThat(transactions.findById(later.id()).orElseThrow().getInvoiceReference())
+                .isEqualTo(LocalDate.of(2026, 12, 1));
+        assertThat(transactions.sumAmountByCreditCardIdAndInvoiceReference(card.getId(), MONTH))
+                .isEqualByComparingTo("110.11");
+    }
+
+    @Test
+    void transfersAndInvoicePaymentsChangeAccountBalanceButDoNotChangeDashboard() {
+        Long userId = owner.getId();
+        var incomeCategory = categories.saveAndFlush(new Category(owner, "Receita", TransactionType.INCOME, null, null));
+        transactionService.create(userId, new TransactionRequest(TransactionType.INCOME, new BigDecimal("200.11"),
+                incomeCategory.getId(), MONTH, null, null, account.getId(), null, null));
+        var before = dashboard.getSummary(userId, Period.MONTH, MONTH, null, null, null, null);
+
+        Account destination = newDestination();
+        transfers.create(userId, transferTo(destination, "40.07"));
+        invoices.payInvoice(userId, card, "2026-11",
+                new InvoicePaymentRequest(account.getId(), new BigDecimal("15.04"), MONTH));
+
+        var after = dashboard.getSummary(userId, Period.MONTH, MONTH, null, null, null, null);
+        assertThat(after).isEqualTo(before);
+        assertThat(after.totalIncome()).isEqualByComparingTo("200.11");
+        assertThat(after.totalExpense()).isEqualByComparingTo("100.00");
+        assertThat(after.balance()).isEqualByComparingTo("100.11");
+        assertBalance(account, "145.00");
+        assertBalance(destination, "40.07");
+    }
+
+    @Test
+    void recalculatesBothAccountBalancesAfterEditsAndDeletions() {
+        Long userId = owner.getId();
+        Account destination = newDestination();
+        var expense = transactionService.create(userId, accountExpense("10.11"));
+        var transfer = transfers.create(userId, transferTo(destination, "20.23"));
+        assertBalance(account, "-30.34");
+        assertBalance(destination, "20.23");
+
+        transactionService.update(userId, expense.id(), accountExpense("12.45"));
+        assertBalance(account, "-32.68");
+        transfers.update(userId, transfer.id(), transferTo(destination, "18.19"));
+        assertBalance(account, "-30.64");
+        assertBalance(destination, "18.19");
+
+        transactionService.delete(userId, expense.id());
+        assertBalance(account, "-18.19");
+        transfers.delete(userId, transfer.id());
+        assertBalance(account, "0.00");
+        assertBalance(destination, "0.00");
+    }
+
+    private Account newDestination() {
+        return accounts.saveAndFlush(new Account(owner, "Destino", AccountType.CASH, BigDecimal.ZERO, null, null));
+    }
+
+    private TransferRequest transferTo(Account destination, String amount) {
+        return new TransferRequest(account.getId(), destination.getId(), new BigDecimal(amount), MONTH, null);
+    }
+
+    private TransactionRequest accountExpense(String amount) {
+        return new TransactionRequest(TransactionType.EXPENSE, new BigDecimal(amount), expenseCategory.getId(),
+                MONTH, null, null, account.getId(), null, null);
+    }
+
+    private void assertBalance(Account target, String expected) {
+        assertThat(balances.getById(owner.getId(), target.getId()).balance()).isEqualByComparingTo(expected);
     }
 
     private void rejectDelete(User actor, Long cardId, String reference, InvoicePayment payment) throws Exception {

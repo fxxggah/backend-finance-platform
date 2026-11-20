@@ -300,7 +300,7 @@ class InvoicePaymentRepositoryTest {
         AccountService accounts = new AccountService(
                 transactionRepository, accountRepository, transferRepository, paymentRepository, creditCardRepository, entityManager);
         CreditCardService cards = new CreditCardService(
-                creditCardRepository, transactionRepository, paymentRepository, invoices, entityManager);
+                creditCardRepository, transactionRepository, paymentRepository, invoices, entityManager, clock);
 
         invoices.payInvoice(owner.getId(), card, "2026-10", new InvoicePaymentRequest(
                 account.getId(), new BigDecimal("400.00"), PAY_DATE));

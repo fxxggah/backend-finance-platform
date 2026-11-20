@@ -645,3 +645,16 @@ Evidências: build/phase5-compile-final.log e phase5-regression-final.log (1.004
 A primeira rodada encontrou Docker desligado e Clock ausente no teste de login; corrigidos antes das rodadas aprovadas. O primeiro snapshot Stripe omitia a feature de IA e as respostas 200 dos novos endpoints: corrigidas as anotações e o contexto de exportação; contrato final preserva as duas features e é gerado, não editado manualmente. O helper CDP recebeu espera de DOM inicial e tratamento apenas de cancelamentos de interceptação esperados ao navegar. Não se alteraram as regras para fazer os testes passar.
 
 Definição de pronto técnica: compilação/testes, regras/isolamento/concorrência, migration/validate e docs/OpenAPI aprovados. A última suíte passou com 1.005 testes. Os dois testes finais do piloto usaram o código validado, sem mudanças na aplicação. Produção permanece fora desta entrega.
+
+## Ajustes pré-deploy do FIN — 20/11/2026
+
+Responsável: Gabriel. Ajustes executados após o piloto da V2 em sandbox.
+
+- [x] Validar ID tokens do Google localmente com `google-api-client:2.9.2`, certificados em cache, timeouts e falha sanitizada fora da transação de login. Testes usam um certificado sintético, além de integração HTTP e MySQL para emissão e armazenamento da sessão.
+- [x] Serializar a renovação de sessão entre abas pelo Web Locks. Login e logout participam da mesma fila. Validar duas abas no Chrome com um cookie HttpOnly real e um servidor local de sessões fictícias. Em navegador sem Web Locks, pedir um novo login quando for necessário renovar.
+- [x] Resolver data implícita do dashboard e cálculos de prazo e contribuição mensal das metas com o `Clock` de São Paulo. Cobrir a virada de mês com relógio fixo.
+- [x] Validar a descrição do login no OpenAPI e sincronizar o snapshot e os tipos do frontend.
+- [x] Validar a compilação e a suíte do backend com MySQL (1.026 testes). Após a revisão dos tipos dos claims, reexecutar os 50 testes de autenticação. Validar o frontend com `pnpm build`, 29 testes de API e o teste de duas abas no Chrome.
+- [ ] Confirmar login com credencial real do Google no ambiente de homologação.
+
+Evidências do backend em `build/predeploy-compile-final.log`, `build/predeploy-suite-final.log`, `build/predeploy-auth-final.log` e `build/predeploy-openapi.log`.

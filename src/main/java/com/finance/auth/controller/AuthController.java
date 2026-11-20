@@ -7,9 +7,13 @@ import com.finance.auth.dto.request.RefreshRequest;
 import com.finance.auth.dto.response.TokenResponse;
 import com.finance.auth.service.AuthService;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -26,6 +30,12 @@ public class AuthController {
 
     @PostMapping("/google")
     @Operation(summary = "Login com Google", description = "Valida o ID Token do Google e retorna access + refresh tokens")
+    @ApiResponse(responseCode = "200", description = "Sessão iniciada",
+            content = @Content(mediaType = "application/json", schema = @Schema(implementation = AuthResponse.class)))
+    @ApiResponse(responseCode = "422", description = "Credencial do Google inválida",
+            content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = ProblemDetail.class)))
+    @ApiResponse(responseCode = "503", description = "Certificados do Google indisponíveis",
+            content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = ProblemDetail.class)))
     public ResponseEntity<AuthResponse> loginWithGoogle(@Valid @RequestBody GoogleLoginRequest request) {
         AuthResponse response = authService.loginWithGoogle(request.idToken());
         return ResponseEntity.ok(response);

@@ -49,6 +49,7 @@ Públicas (sem Bearer).
 | POST | `/auth/refresh` | `{ refreshToken }` | `200 { accessToken, refreshToken, expiresIn }` |
 | POST | `/auth/logout` | `{ refreshToken }` | `204` |
 
+- Login com Google retorna `400` quando `idToken` está ausente ou em branco, `422` quando a credencial é inválida e `503` quando os certificados públicos não podem ser obtidos para validar a assinatura. Os erros seguem `ProblemDetail`.
 - Access token: JWT, 15 min. Refresh token: 7 dias, **uso único** (rotation).
 - Refresh reutilizado ou revogado → `401`.
 - A rejeição por reuso confirma a revogação de todos os refresh tokens do usuário. Em duas renovações simultâneas do mesmo token, somente uma pode retornar `200`; a outra retorna `401` e revoga também o sucessor. É necessário fazer login novamente.

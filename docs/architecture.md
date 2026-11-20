@@ -53,6 +53,7 @@ Dentro de cada feature: `XController`, `XService`, `XRepository`, `X` (entity) e
 
 1. O front faz o login com o Google e recebe um **ID Token**.
 2. `POST /api/v1/auth/google` recebe `{ idToken }`. O `GoogleTokenVerifier` (`google-api-client`) valida assinatura, `aud` (Client ID), `iss`, expiração e `email_verified`.
+   O verificador reutiliza os certificados públicos do Google em memória conforme o cache do SDK, com 2 s para conectar e 3 s de leitura na busca. A validação ocorre antes da transação que atualiza o usuário e grava o refresh token. Falha na busca retorna `503` com mensagem genérica.
 3. O `AuthService` busca o usuário por `googleId`; se não existir, cria o `User` **e os dados iniciais** (categorias padrão + conta "Carteira"). Se existir, atualiza nome e foto.
 4. Devolve **access token** (JWT, 15 min) e **refresh token** (7 dias, uso único com rotation, só o **hash** vai ao banco).
 

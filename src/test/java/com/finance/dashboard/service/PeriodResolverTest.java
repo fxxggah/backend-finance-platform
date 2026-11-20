@@ -9,7 +9,10 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 
+import java.time.Clock;
+import java.time.Instant;
 import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.stream.Stream;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -17,7 +20,9 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class PeriodResolverTest {
 
-    private final PeriodResolver resolver = new PeriodResolver();
+    private static final ZoneId SAO_PAULO = ZoneId.of("America/Sao_Paulo");
+    private final Clock clock = Clock.fixed(Instant.parse("2026-12-01T02:59:59Z"), SAO_PAULO);
+    private final PeriodResolver resolver = new PeriodResolver(clock);
 
     private static LocalDate d(int year, int month, int day) {
         return LocalDate.of(year, month, day);
@@ -70,12 +75,25 @@ class PeriodResolverTest {
     @Test
     @DisplayName("resolveCurrent: deve usar a data de hoje quando a referência é nula")
     void resolveCurrent_shouldUseToday_whenReferenceIsNull() {
-        LocalDate today = LocalDate.now();
+        LocalDate today = d(2026, 11, 30);
 
         PeriodRange range = resolver.resolveCurrent(Period.DAY, null, null, null);
 
         assertThat(range.from()).isEqualTo(today);
         assertThat(range.to()).isEqualTo(today);
+    }
+
+    @Test
+    void dayAndMonthChangeOnlyAtSaoPauloMidnight() {
+        var after = new PeriodResolver(Clock.fixed(Instant.parse("2026-12-01T03:00:00Z"), SAO_PAULO));
+        assertThat(resolver.resolveCurrent(Period.MONTH, null, null, null))
+                .isEqualTo(new PeriodRange(d(2026, 11, 1), d(2026, 11, 30)));
+        assertThat(after.resolveCurrent(Period.DAY, null, null, null))
+                .isEqualTo(new PeriodRange(d(2026, 12, 1), d(2026, 12, 1)));
+        assertThat(after.resolveCurrent(Period.MONTH, null, null, null))
+                .isEqualTo(new PeriodRange(d(2026, 12, 1), d(2026, 12, 31)));
+        assertThat(after.resolveCurrent(Period.DAY, d(2026, 10, 5), null, null))
+                .isEqualTo(new PeriodRange(d(2026, 10, 5), d(2026, 10, 5)));
     }
 
     @Test

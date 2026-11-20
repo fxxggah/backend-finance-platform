@@ -4,6 +4,7 @@ import com.finance.auth.dto.response.TokenResponse;
 import com.finance.auth.entity.RefreshToken;
 import com.finance.auth.repository.RefreshTokenRepository;
 import com.finance.auth.service.AuthService;
+import com.finance.security.GoogleTokenVerifier;
 import com.finance.security.JwtService;
 import com.finance.user.entity.User;
 import com.finance.user.repository.UserRepository;
@@ -18,7 +19,9 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.transaction.support.TransactionTemplate;
+import org.springframework.web.server.ResponseStatusException;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.mysql.MySQLContainer;
@@ -34,7 +37,9 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
+import static org.springframework.http.HttpStatus.SERVICE_UNAVAILABLE;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
@@ -55,6 +60,7 @@ class AuthRefreshIntegrationTest {
     @Autowired MockMvc mvc;
     @Autowired AuthService auth;
     @MockitoSpyBean JwtService jwt;
+    @MockitoSpyBean GoogleTokenVerifier google;
     @Autowired RefreshTokenRepository tokens;
     @Autowired UserRepository users;
     @Autowired PlatformTransactionManager transactionManager;
@@ -65,6 +71,48 @@ class AuthRefreshIntegrationTest {
     void setup() {
         owner = user();
         other = user();
+    }
+
+    @Test
+    void verifiedLoginPersistsUserAndSessionAfterVerificationOutsideTransaction() throws Exception {
+        String googleId = UUID.randomUUID().toString();
+        String email = googleId + "@example.test";
+        doAnswer(invocation -> {
+            assertThat(TransactionSynchronizationManager.isActualTransactionActive()).isFalse();
+            return new GoogleTokenVerifier.GoogleClaims(googleId, email, "Login de Teste", null);
+        }).when(google).verify("signed-fixture");
+
+        mvc.perform(post("/api/v1/auth/google").contentType("application/json")
+                        .content("{\"idToken\":\"signed-fixture\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.accessToken").isNotEmpty())
+                .andExpect(jsonPath("$.refreshToken").isNotEmpty())
+                .andExpect(jsonPath("$.user.email").value(email));
+
+        User created = users.findByGoogleId(googleId).orElseThrow();
+        assertThat(tokens.findAllByUserId(created.getId())).hasSize(1);
+    }
+
+    @Test
+    void rejectedGoogleLoginDoesNotPersistUsersOrSessions() throws Exception {
+        long usersBefore = users.count();
+        long tokensBefore = tokens.count();
+        doThrow(new ResponseStatusException(SERVICE_UNAVAILABLE, "Certificados indisponíveis."))
+                .when(google).verify("upstream-unavailable");
+
+        mvc.perform(post("/api/v1/auth/google").contentType("application/json")
+                        .content("{\"idToken\":\"malformed-fixture\"}"))
+                .andExpect(status().isUnprocessableContent())
+                .andExpect(content().contentTypeCompatibleWith("application/problem+json"))
+                .andExpect(jsonPath("$.status").value(422));
+        mvc.perform(post("/api/v1/auth/google").contentType("application/json")
+                        .content("{\"idToken\":\"upstream-unavailable\"}"))
+                .andExpect(status().isServiceUnavailable())
+                .andExpect(content().contentTypeCompatibleWith("application/problem+json"))
+                .andExpect(jsonPath("$.status").value(503));
+
+        assertThat(users.count()).isEqualTo(usersBefore);
+        assertThat(tokens.count()).isEqualTo(tokensBefore);
     }
 
     @Test

@@ -28,7 +28,10 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.math.BigDecimal;
+import java.time.Clock;
+import java.time.Instant;
 import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.List;
 import java.util.Optional;
 
@@ -63,6 +66,8 @@ class GoalServiceTest {
     private CategoryRepository categoryRepository;
     @Mock
     private UserRepository userRepository;
+    @Mock
+    private Clock clock;
 
     @InjectMocks
     private GoalService goalService;
@@ -71,6 +76,8 @@ class GoalServiceTest {
 
     @BeforeEach
     void setUp() {
+        lenient().when(clock.getZone()).thenReturn(ZoneId.of("America/Sao_Paulo"));
+        lenient().when(clock.instant()).thenReturn(Instant.parse("2026-12-01T02:59:59Z"));
         user = mock(User.class);
         lenient().when(user.getId()).thenReturn(USER_ID);
     }
@@ -279,7 +286,7 @@ class GoalServiceTest {
     @DisplayName("state EXPENSE: período encerrado sem estourar o limite deve ser ACHIEVED")
     void state_expense_shouldBeAchieved_whenPeriodEndedWithinLimit() {
         Goal goal = goal(GOAL_ID, GoalType.EXPENSE, "1000.00", "500.00");
-        goal.setEndDate(LocalDate.now().minusDays(1));
+        goal.setEndDate(LocalDate.now(clock).minusDays(1));
 
         assertThat(getResponse(goal).state()).isEqualTo(GoalState.ACHIEVED);
     }
@@ -288,7 +295,7 @@ class GoalServiceTest {
     @DisplayName("state EXPENSE: período encerrado estourando o limite deve continuar EXCEEDED")
     void state_expense_shouldBeExceeded_whenPeriodEndedOverLimit() {
         Goal goal = goal(GOAL_ID, GoalType.EXPENSE, "1000.00", "1500.00");
-        goal.setEndDate(LocalDate.now().minusDays(1));
+        goal.setEndDate(LocalDate.now(clock).minusDays(1));
 
         assertThat(getResponse(goal).state()).isEqualTo(GoalState.EXCEEDED);
     }
@@ -307,7 +314,7 @@ class GoalServiceTest {
     @DisplayName("state SAVINGS: período encerrado sem atingir o alvo deve ser EXPIRED")
     void state_savings_shouldBeExpired_whenPeriodEndedBelowTarget() {
         Goal goal = goal(GOAL_ID, GoalType.SAVINGS, "1000.00", "500.00");
-        goal.setEndDate(LocalDate.now().minusDays(1));
+        goal.setEndDate(LocalDate.now(clock).minusDays(1));
 
         assertThat(getResponse(goal).state()).isEqualTo(GoalState.EXPIRED);
     }
@@ -316,7 +323,7 @@ class GoalServiceTest {
     @DisplayName("state SAVINGS: período encerrado mas alvo atingido deve ser ACHIEVED")
     void state_savings_shouldBeAchieved_whenPeriodEndedButTargetReached() {
         Goal goal = goal(GOAL_ID, GoalType.SAVINGS, "1000.00", "1000.00");
-        goal.setEndDate(LocalDate.now().minusDays(1));
+        goal.setEndDate(LocalDate.now(clock).minusDays(1));
 
         assertThat(getResponse(goal).state()).isEqualTo(GoalState.ACHIEVED);
     }
@@ -325,7 +332,7 @@ class GoalServiceTest {
     @DisplayName("state SAVINGS: abaixo do alvo e dentro do prazo deve ser IN_PROGRESS")
     void state_savings_shouldBeInProgress_whenBelowTargetAndWithinPeriod() {
         Goal goal = goal(GOAL_ID, GoalType.SAVINGS, "1000.00", "500.00");
-        goal.setEndDate(LocalDate.now().plusMonths(2));
+        goal.setEndDate(LocalDate.now(clock).plusMonths(2));
 
         assertThat(getResponse(goal).state()).isEqualTo(GoalState.IN_PROGRESS);
     }
@@ -334,7 +341,7 @@ class GoalServiceTest {
     @DisplayName("state INCOME: sem progresso e dentro do prazo deve ser IN_PROGRESS")
     void state_income_shouldBeInProgress_whenNoProgress() {
         Goal goal = goal(GOAL_ID, GoalType.INCOME, "1000.00", null);
-        goal.setEndDate(LocalDate.now().plusMonths(1));
+        goal.setEndDate(LocalDate.now(clock).plusMonths(1));
 
         assertThat(getResponse(goal).state()).isEqualTo(GoalState.IN_PROGRESS);
     }
@@ -342,10 +349,25 @@ class GoalServiceTest {
     // ---------- monthlyNeeded ----------
 
     @Test
+    void deadlineAndMonthlyContributionSwitchAtSaoPauloMidnight() {
+        var deadline = goal(GOAL_ID, GoalType.SAVINGS, "1000.00", "200.00");
+        deadline.setEndDate(LocalDate.of(2026, 11, 30));
+        var savings = goal(GOAL_ID + 1, GoalType.SAVINGS, "1000.00", "200.00");
+        savings.setEndDate(LocalDate.of(2027, 1, 31));
+
+        assertThat(getResponse(deadline).state()).isEqualTo(GoalState.IN_PROGRESS);
+        assertThat(getResponse(savings).monthlyNeeded()).isEqualByComparingTo("400.00");
+
+        when(clock.instant()).thenReturn(Instant.parse("2026-12-01T03:00:00Z"));
+        assertThat(getResponse(deadline).state()).isEqualTo(GoalState.EXPIRED);
+        assertThat(getResponse(savings).monthlyNeeded()).isEqualByComparingTo("800.00");
+    }
+
+    @Test
     @DisplayName("monthlyNeeded: deve dividir o valor restante pelos meses até a data final")
     void monthlyNeeded_shouldDivideRemainingByMonths() {
         Goal goal = goal(GOAL_ID, GoalType.SAVINGS, "1000.00", "200.00");
-        goal.setEndDate(LocalDate.now().plusMonths(4));
+        goal.setEndDate(LocalDate.now(clock).plusMonths(4));
 
         assertThat(getResponse(goal).monthlyNeeded()).isEqualByComparingTo("200.00");
     }
@@ -354,7 +376,7 @@ class GoalServiceTest {
     @DisplayName("monthlyNeeded: deve considerar no mínimo 1 mês quando a data final já passou ou é este mês")
     void monthlyNeeded_shouldUseAtLeastOneMonth() {
         Goal goal = goal(GOAL_ID, GoalType.SAVINGS, "1000.00", "200.00");
-        goal.setEndDate(LocalDate.now().minusMonths(2));
+        goal.setEndDate(LocalDate.now(clock).minusMonths(2));
 
         assertThat(getResponse(goal).monthlyNeeded()).isEqualByComparingTo("800.00");
     }
@@ -363,7 +385,7 @@ class GoalServiceTest {
     @DisplayName("monthlyNeeded: deve ser zero quando o alvo já foi atingido")
     void monthlyNeeded_shouldBeZero_whenTargetReached() {
         Goal goal = goal(GOAL_ID, GoalType.SAVINGS, "1000.00", "1200.00");
-        goal.setEndDate(LocalDate.now().plusMonths(3));
+        goal.setEndDate(LocalDate.now(clock).plusMonths(3));
 
         assertThat(getResponse(goal).monthlyNeeded()).isEqualByComparingTo("0");
     }
@@ -378,7 +400,7 @@ class GoalServiceTest {
     @DisplayName("monthlyNeeded: deve ser nulo para metas que não são SAVINGS")
     void monthlyNeeded_shouldBeNull_whenNotSavings() {
         Goal goal = goal(GOAL_ID, GoalType.EXPENSE, "1000.00", null);
-        goal.setEndDate(LocalDate.now().plusMonths(3));
+        goal.setEndDate(LocalDate.now(clock).plusMonths(3));
 
         assertThat(getResponse(goal).monthlyNeeded()).isNull();
     }
@@ -560,7 +582,7 @@ class GoalServiceTest {
         stubFindOwned(goal);
         stubSaveReturnsArgument();
         GoalRequest request = new GoalRequest(GoalType.SAVINGS, "Novo nome", "Nova desc", "car", "#000000",
-                new BigDecimal("2000.00"), null, null, LocalDate.now().plusMonths(5));
+                new BigDecimal("2000.00"), null, null, LocalDate.now(clock).plusMonths(5));
 
         GoalResponse response = goalService.updateGoal(GOAL_ID, USER_ID, request);
 

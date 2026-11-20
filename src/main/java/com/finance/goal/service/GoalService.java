@@ -24,6 +24,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.time.Clock;
 import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
@@ -31,6 +32,7 @@ import java.util.List;
 @Service
 @RequiredArgsConstructor
 public class GoalService {
+    private final Clock clock;
 
     private final GoalRepository goalRepository;
     private final GoalContributionRepository contributionRepository;
@@ -212,8 +214,9 @@ public class GoalService {
                     .divide(goal.getTargetAmount(), 2, RoundingMode.HALF_UP);
         }
 
-        GoalState state = calculateState(goal, percentage);
-        BigDecimal monthlyNeeded = calculateMonthlyNeeded(goal, currentAmount);
+        LocalDate today = LocalDate.now(clock);
+        GoalState state = calculateState(goal, percentage, today);
+        BigDecimal monthlyNeeded = calculateMonthlyNeeded(goal, currentAmount, today);
 
         CategorySimpleDto catDto = null;
         if (goal.getCategory() != null) {
@@ -233,8 +236,7 @@ public class GoalService {
         );
     }
 
-    private GoalState calculateState(Goal goal, BigDecimal percentage) {
-        LocalDate today = LocalDate.now();
+    private GoalState calculateState(Goal goal, BigDecimal percentage, LocalDate today) {
         boolean isPeriodEnded = goal.getEndDate() != null && today.isAfter(goal.getEndDate());
 
         if (goal.getType() == GoalType.EXPENSE) {
@@ -249,12 +251,12 @@ public class GoalService {
         }
     }
 
-    private BigDecimal calculateMonthlyNeeded(Goal goal, BigDecimal currentAmount) {
+    private BigDecimal calculateMonthlyNeeded(Goal goal, BigDecimal currentAmount, LocalDate today) {
         if (goal.getType() != GoalType.SAVINGS || goal.getEndDate() == null) {
             return null;
         }
 
-        long monthsBetween = ChronoUnit.MONTHS.between(LocalDate.now().withDayOfMonth(1), goal.getEndDate().withDayOfMonth(1));
+        long monthsBetween = ChronoUnit.MONTHS.between(today.withDayOfMonth(1), goal.getEndDate().withDayOfMonth(1));
         long monthsRemaining = Math.max(1, monthsBetween);
 
         BigDecimal remainingAmount = goal.getTargetAmount().subtract(currentAmount);

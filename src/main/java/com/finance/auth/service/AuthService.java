@@ -22,6 +22,8 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
@@ -44,6 +46,7 @@ public class AuthService {
     private final JwtService jwtService;
     private final java.time.Clock clock;
     private final com.finance.billing.service.ProAccessService proAccess;
+    private final TransactionTemplate transactions;
 
     @Value("${app.jwt.refresh-token-expiration}")
     private long refreshTokenExpiration;
@@ -52,10 +55,13 @@ public class AuthService {
     // Login com Google
     // ---------------------------------------------------------------------------
 
-    @Transactional
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
     public AuthResponse loginWithGoogle(String idToken) {
         GoogleClaims claims = googleTokenVerifier.verify(idToken);
+        return transactions.execute(status -> loginVerifiedUser(claims));
+    }
 
+    private AuthResponse loginVerifiedUser(GoogleClaims claims) {
         User user = userRepository.findByGoogleId(claims.googleId())
                 .map(existing -> updateUser(existing, claims))
                 .orElseGet(() -> createUserWithSeed(claims));

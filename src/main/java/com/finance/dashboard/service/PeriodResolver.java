@@ -5,6 +5,7 @@ import com.finance.common.enums.Granularity;
 import com.finance.dashboard.dto.PeriodRange;
 import org.springframework.stereotype.Component;
 
+import java.time.Clock;
 import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
@@ -12,9 +13,14 @@ import java.time.temporal.TemporalAdjusters;
 
 @Component
 public class PeriodResolver {
+    private final Clock clock;
+
+    public PeriodResolver(Clock clock) {
+        this.clock = clock;
+    }
 
     public PeriodRange resolveCurrent(Period period, LocalDate referenceDate, LocalDate customFrom, LocalDate customTo) {
-        if (referenceDate == null) referenceDate = LocalDate.now();
+        if (referenceDate == null) referenceDate = LocalDate.now(clock);
 
         return switch (period) {
             case DAY -> new PeriodRange(referenceDate, referenceDate);

@@ -30,6 +30,11 @@
 		<java.version>25</java.version>
 	</properties>
 	<dependencies>
+		<dependency>
+			<groupId>com.google.api-client</groupId>
+			<artifactId>google-api-client</artifactId>
+			<version>2.9.2</version>
+		</dependency>
 		<!-- V2 fase 5: API e verificação de webhooks Stripe; sandbox/dev opt-in. -->
 		<dependency>
 			<groupId>com.stripe</groupId>

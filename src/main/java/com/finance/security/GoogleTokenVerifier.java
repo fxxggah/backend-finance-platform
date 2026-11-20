@@ -1,140 +1,184 @@
 package com.finance.security;
 
-import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
-import com.fasterxml.jackson.annotation.JsonProperty;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.finance.common.exception.BusinessRuleException;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import com.google.api.client.googleapis.auth.oauth2.GoogleIdToken;
+import com.google.api.client.googleapis.auth.oauth2.GoogleIdTokenVerifier;
+import com.google.api.client.googleapis.auth.oauth2.GooglePublicKeysManager;
+import com.google.api.client.http.HttpTransport;
+import com.google.api.client.http.LowLevelHttpRequest;
+import com.google.api.client.http.LowLevelHttpResponse;
+import com.google.api.client.json.gson.GsonFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
+import org.springframework.web.server.ResponseStatusException;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.io.InputStream;
+import java.net.HttpURLConnection;
 import java.net.URI;
-import java.net.URLEncoder;
-import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
-import java.nio.charset.StandardCharsets;
-import java.time.Instant;
+import java.security.GeneralSecurityException;
+import java.security.SignatureException;
+import java.time.Clock;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 
-/**
- * Valida o ID Token emitido pelo Google Sign-In.
- * <p>
- * Usa o endpoint público do Google {@code /oauth2/v3/tokeninfo} para validar a
- * assinatura
- * sem precisar do SDK {@code google-api-client}. O endpoint é chamado apenas
- * durante o login.
- * <ul>
- * <li>Valida assinatura (feita pelo Google)</li>
- * <li>Valida {@code aud} contra o GOOGLE_CLIENT_ID configurado</li>
- * <li>Valida {@code iss} (accounts.google.com)</li>
- * <li>Valida expiração</li>
- * <li>Exige {@code email_verified = true}</li>
- * </ul>
- */
+/** Valida a credencial localmente; a rede é usada apenas para obter certificados públicos. */
 @Component
 public class GoogleTokenVerifier {
+    private static final URI CERTIFICATES = URI.create("https://www.googleapis.com/oauth2/v1/certs");
+    private static final GsonFactory JSON = GsonFactory.getDefaultInstance();
 
-    private static final Logger log = LoggerFactory.getLogger(GoogleTokenVerifier.class);
-    private static final String TOKENINFO_URL = "https://oauth2.googleapis.com/tokeninfo?id_token=";
+    private final Clock clock;
+    private final GoogleIdTokenVerifier verifier;
 
-    private final String googleClientId;
-    private final HttpClient httpClient;
-    private final ObjectMapper objectMapper;
-
-    public GoogleTokenVerifier(
-            @Value("${app.google.client-id}") String googleClientId) {
-        this.googleClientId = googleClientId;
-        this.httpClient = HttpClient.newHttpClient();
-        this.objectMapper = new ObjectMapper();
+    @Autowired
+    public GoogleTokenVerifier(@Value("${app.google.client-id}") String clientId, Clock clock) {
+        this(clientId, clock, CERTIFICATES, 2_000, 3_000);
     }
 
-    /**
-     * Valida o ID Token e retorna os claims do usuário.
-     *
-     * @param idToken o ID Token recebido do frontend
-     * @return {@link GoogleClaims} com sub, email, name e picture
-     * @throws BusinessRuleException se o token for inválido
-     */
-    public GoogleClaims verify(String idToken) {
-        GoogleTokenInfoResponse info = fetchTokenInfo(idToken);
-        validateClaims(info);
-        return new GoogleClaims(
-                info.sub(),
-                info.email(),
-                info.name(),
-                info.picture());
-    }
-
-    private GoogleTokenInfoResponse fetchTokenInfo(String idToken) {
-        String encodedToken = URLEncoder.encode(idToken, StandardCharsets.UTF_8);
-        HttpRequest request = HttpRequest.newBuilder()
-                .uri(URI.create(TOKENINFO_URL + encodedToken))
-                .GET()
+    GoogleTokenVerifier(String clientId, Clock clock, URI certificates, int connectTimeout, int readTimeout) {
+        if (clientId.isBlank()) throw new IllegalArgumentException("Configure o client ID do Google.");
+        this.clock = clock;
+        var keys = new GooglePublicKeysManager.Builder(
+                new CertificateTransport(certificates, connectTimeout, readTimeout), JSON)
+                .setPublicCertsEncodedUrl(certificates.toString())
+                .setClock(clock::millis)
                 .build();
+        this.verifier = new GoogleIdTokenVerifier.Builder(keys)
+                .setAudience(List.of(clientId))
+                .setClock(clock::millis)
+                .build();
+    }
 
+    public GoogleClaims verify(String idToken) {
+        GoogleIdToken token;
         try {
-            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
-            if (response.statusCode() != 200) {
-                log.warn("Google tokeninfo retornou status {}: {}", response.statusCode(), response.body());
-                throw new BusinessRuleException("ID Token do Google inválido");
-            }
-            return objectMapper.readValue(response.body(), GoogleTokenInfoResponse.class);
-        } catch (IOException | InterruptedException e) {
-            if (e instanceof InterruptedException) {
-                Thread.currentThread().interrupt();
-            }
-            log.error("Erro ao validar ID Token no Google: {}", e.getMessage());
-            throw new BusinessRuleException("Não foi possível validar o token do Google");
+            token = GoogleIdToken.parse(JSON, idToken);
+        } catch (IOException | RuntimeException invalid) {
+            throw rejected();
         }
+        var payload = token.getPayload();
+        Long expires = payload.getExpirationTimeSeconds();
+        Object audience = payload.getAudience();
+        Object emailVerified = payload.get("email_verified");
+        if (!"RS256".equals(token.getHeader().getAlgorithm()) || expires == null
+                || expires <= clock.instant().getEpochSecond() || payload.getIssuedAtTimeSeconds() == null
+                || empty(payload.getSubject()) || empty(payload.getEmail())
+                || !wellFormedAudience(audience)
+                || (!Boolean.TRUE.equals(emailVerified) && !"true".equals(emailVerified))) {
+            throw rejected();
+        }
+        boolean valid;
+        try {
+            valid = verifier.verify(token);
+        } catch (SignatureException invalid) {
+            throw rejected();
+        } catch (GeneralSecurityException | IOException | IllegalArgumentException invalidCertificates) {
+            // A mensagem do SDK pode conter o corpo da resposta. Não propagar a causa.
+            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE,
+                    "Não foi possível validar a credencial do Google agora. Tente novamente.");
+        }
+        if (!valid) throw rejected();
+        Object nameClaim = payload.get("name");
+        String name = nameClaim instanceof String value && !value.isBlank() ? value : payload.getEmail();
+        Object picture = payload.get("picture");
+        return new GoogleClaims(payload.getSubject(), payload.getEmail(), name,
+                picture instanceof String url ? url : null);
     }
 
-    private void validateClaims(GoogleTokenInfoResponse info) {
-        // Valida audience
-        if (!googleClientId.equals(info.aud())) {
-            throw new BusinessRuleException("ID Token não pertence a este cliente");
-        }
-
-        // Valida issuer
-        if (info.iss() == null ||
-                (!info.iss().equals("accounts.google.com") && !info.iss().equals("https://accounts.google.com"))) {
-            throw new BusinessRuleException("Emissor do ID Token inválido");
-        }
-
-        // Valida expiração
-        if (info.exp() == null || Instant.ofEpochSecond(info.exp()).isBefore(Instant.now())) {
-            throw new BusinessRuleException("ID Token expirado");
-        }
-
-        // Exige email verificado
-        if (!"true".equals(info.emailVerified())) {
-            throw new BusinessRuleException("E-mail do Google não verificado");
-        }
+    private static boolean empty(String value) {
+        return value == null || value.isBlank();
     }
+
+    private static boolean wellFormedAudience(Object audience) {
+        return audience instanceof String
+                || (audience instanceof List<?> entries && entries.stream().allMatch(String.class::isInstance));
+    }
+
+    private static BusinessRuleException rejected() {
+        return new BusinessRuleException("ID Token do Google inválido");
+    }
+
+    public record GoogleClaims(String googleId, String email, String name, String pictureUrl) {}
 
     /**
-     * Resposta do endpoint {@code /tokeninfo} do Google.
+     * O gerenciador do Google cria sua própria HttpRequestFactory. Este transporte aplica
+     * os limites diretamente no socket, sem usar os timeouts padrão da fábrica do SDK.
      */
-    @JsonIgnoreProperties(ignoreUnknown = true)
-    public record GoogleTokenInfoResponse(
-            String sub,
-            String email,
-            @JsonProperty("email_verified") String emailVerified,
-            String name,
-            String picture,
-            String aud,
-            String iss,
-            Long exp) {
+    private static final class CertificateTransport extends HttpTransport {
+        private static final int MAX_RESPONSE_BYTES = 64 * 1024;
+        private final URI certificates;
+        private final int connectTimeout;
+        private final int readTimeout;
+
+        CertificateTransport(URI certificates, int connectTimeout, int readTimeout) {
+            this.certificates = Objects.requireNonNull(certificates);
+            this.connectTimeout = connectTimeout;
+            this.readTimeout = readTimeout;
+        }
+
+        @Override
+        protected LowLevelHttpRequest buildRequest(String method, String url) throws IOException {
+            if (!"GET".equals(method) || !certificates.toString().equals(url)) {
+                throw new IOException("Destino de certificados inválido.");
+            }
+            var connection = (HttpURLConnection) certificates.toURL().openConnection();
+            connection.setConnectTimeout(connectTimeout);
+            connection.setReadTimeout(readTimeout);
+            connection.setInstanceFollowRedirects(false);
+            return new LowLevelHttpRequest() {
+                @Override public void addHeader(String name, String value) {
+                    connection.addRequestProperty(name, value);
+                }
+
+                @Override public LowLevelHttpResponse execute() throws IOException {
+                    try {
+                        if (connection.getResponseCode() != 200) {
+                            throw new IOException("Certificados do Google indisponíveis.");
+                        }
+                        return new CertificateResponse(connection);
+                    } finally {
+                        connection.disconnect();
+                    }
+                }
+            };
+        }
     }
 
-    /**
-     * Claims relevantes extraídos do ID Token após validação.
-     */
-    public record GoogleClaims(
-            String googleId,
-            String email,
-            String name,
-            String pictureUrl) {
+    private static final class CertificateResponse extends LowLevelHttpResponse {
+        private final byte[] body;
+        private final List<Map.Entry<String, String>> headers = new ArrayList<>();
+        private final String encoding;
+        private final String contentType;
+
+        CertificateResponse(HttpURLConnection connection) throws IOException {
+            try (var input = connection.getInputStream()) {
+                body = input.readNBytes(CertificateTransport.MAX_RESPONSE_BYTES + 1);
+                if (body.length > CertificateTransport.MAX_RESPONSE_BYTES) {
+                    throw new IOException("Resposta de certificados do Google acima do limite.");
+                }
+            }
+            encoding = connection.getContentEncoding();
+            contentType = connection.getContentType();
+            connection.getHeaderFields().forEach((name, values) -> {
+                if (name != null) values.forEach(value -> headers.add(Map.entry(name, value)));
+            });
+        }
+
+        @Override public InputStream getContent() { return new ByteArrayInputStream(body); }
+        @Override public String getContentEncoding() { return encoding; }
+        @Override public long getContentLength() { return body.length; }
+        @Override public String getContentType() { return contentType; }
+        @Override public String getStatusLine() { return "HTTP/1.1 200 OK"; }
+        @Override public int getStatusCode() { return 200; }
+        @Override public String getReasonPhrase() { return "OK"; }
+        @Override public int getHeaderCount() { return headers.size(); }
+        @Override public String getHeaderName(int index) { return headers.get(index).getKey(); }
+        @Override public String getHeaderValue(int index) { return headers.get(index).getValue(); }
     }
 }

@@ -173,6 +173,8 @@ Estourar o limite **não bloqueia**: devolver `availableLimit` negativo e o fron
 
 ### Períodos (resolvidos pelo backend em `PeriodResolver`)
 
+Quando a data de referência está ausente, usar o dia atual em `America/Sao_Paulo` via `Clock`. Preservar a referência explícita.
+
 | Período | Definição |
 |---|---|
 | `DAY` | O dia de `date` |
@@ -194,6 +196,8 @@ Fazer **uma query** agrupada por `date` e `type` e montar os baldes em Java. Bal
 ## 9. Metas (`Goal`)
 
 ### Regras comuns
+
+Calcular prazo e mês das contribuições a partir do mesmo dia de referência em `America/Sao_Paulo` via `Clock`.
 
 - `targetAmount` > 0; nome obrigatório (até 100); `description` até 255; `icon`/`color` opcionais (padrão `target`).
 - `status` persistido: `ACTIVE` ou `CANCELLED`. O **estado** (`GoalState`) é calculado na resposta.

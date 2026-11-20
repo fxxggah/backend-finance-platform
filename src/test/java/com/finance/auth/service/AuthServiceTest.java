@@ -82,6 +82,7 @@ class AuthServiceTest {
 
     @Mock private com.finance.billing.service.ProAccessService proAccess;
     @Mock private java.time.Clock clock;
+    @Mock private org.springframework.transaction.support.TransactionTemplate transactions;
 
     @Captor
     private ArgumentCaptor<List<Category>> categoriesCaptor;
@@ -91,6 +92,9 @@ class AuthServiceTest {
 
     @BeforeEach
     void setUp() {
+        lenient().when(transactions.execute(any())).thenAnswer(invocation ->
+                invocation.<org.springframework.transaction.support.TransactionCallback<?>>getArgument(0)
+                        .doInTransaction(new org.springframework.transaction.support.SimpleTransactionStatus()));
         lenient().when(clock.instant()).thenReturn(Instant.parse("2026-11-16T12:00:00Z"));
         // Campo injetado por @Value, fora do construtor
         ReflectionTestUtils.setField(authService, "refreshTokenExpiration", REFRESH_EXPIRATION_SECONDS);

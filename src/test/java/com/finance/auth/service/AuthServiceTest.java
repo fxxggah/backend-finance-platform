@@ -356,7 +356,7 @@ class AuthServiceTest {
     void refresh_shouldRotateTokens() {
         User user = existingUser();
         RefreshToken stored = storedToken(user, HASH_ABC, Instant.now().plusSeconds(600), false);
-        when(refreshTokenRepository.findByTokenHash(HASH_ABC)).thenReturn(Optional.of(stored));
+        when(refreshTokenRepository.lockByTokenHash(HASH_ABC)).thenReturn(Optional.of(stored));
         stubJwt();
 
         Instant before = Instant.now();
@@ -388,7 +388,7 @@ class AuthServiceTest {
     @Test
     @DisplayName("refresh: deve lançar BadCredentialsException quando o token não existe")
     void refresh_shouldThrow_whenTokenNotFound() {
-        when(refreshTokenRepository.findByTokenHash(HASH_ABC)).thenReturn(Optional.empty());
+        when(refreshTokenRepository.lockByTokenHash(HASH_ABC)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> authService.refresh(RAW_ABC))
                 .isInstanceOf(BadCredentialsException.class)
@@ -403,7 +403,7 @@ class AuthServiceTest {
     @DisplayName("refresh: token já revogado indica reuso e deve revogar todos os tokens do usuário")
     void refresh_shouldRevokeAllUserTokens_whenTokenIsReused() {
         RefreshToken stored = storedToken(existingUser(), HASH_ABC, Instant.now().plusSeconds(600), true);
-        when(refreshTokenRepository.findByTokenHash(HASH_ABC)).thenReturn(Optional.of(stored));
+        when(refreshTokenRepository.lockByTokenHash(HASH_ABC)).thenReturn(Optional.of(stored));
 
         assertThatThrownBy(() -> authService.refresh(RAW_ABC))
                 .isInstanceOf(BadCredentialsException.class)
@@ -418,7 +418,7 @@ class AuthServiceTest {
     @DisplayName("refresh: a detecção de reuso tem prioridade sobre a expiração")
     void refresh_shouldDetectReuse_evenWhenTokenIsAlsoExpired() {
         RefreshToken stored = storedToken(existingUser(), HASH_ABC, Instant.now().minusSeconds(60), true);
-        when(refreshTokenRepository.findByTokenHash(HASH_ABC)).thenReturn(Optional.of(stored));
+        when(refreshTokenRepository.lockByTokenHash(HASH_ABC)).thenReturn(Optional.of(stored));
 
         assertThatThrownBy(() -> authService.refresh(RAW_ABC))
                 .isInstanceOf(BadCredentialsException.class)
@@ -431,7 +431,7 @@ class AuthServiceTest {
     @DisplayName("refresh: token expirado deve lançar BadCredentialsException sem emitir novos tokens")
     void refresh_shouldThrow_whenTokenIsExpired() {
         RefreshToken stored = storedToken(existingUser(), HASH_ABC, Instant.now().minusSeconds(1), false);
-        when(refreshTokenRepository.findByTokenHash(HASH_ABC)).thenReturn(Optional.of(stored));
+        when(refreshTokenRepository.lockByTokenHash(HASH_ABC)).thenReturn(Optional.of(stored));
 
         assertThatThrownBy(() -> authService.refresh(RAW_ABC))
                 .isInstanceOf(BadCredentialsException.class)
@@ -449,7 +449,7 @@ class AuthServiceTest {
         User user = existingUser();
         user.setActive(false);
         RefreshToken stored = storedToken(user, HASH_ABC, Instant.now().plusSeconds(600), false);
-        when(refreshTokenRepository.findByTokenHash(HASH_ABC)).thenReturn(Optional.of(stored));
+        when(refreshTokenRepository.lockByTokenHash(HASH_ABC)).thenReturn(Optional.of(stored));
 
         assertThatThrownBy(() -> authService.refresh(RAW_ABC))
                 .isInstanceOf(BadCredentialsException.class)

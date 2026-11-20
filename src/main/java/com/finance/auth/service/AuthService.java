@@ -79,11 +79,12 @@ public class AuthService {
     // Refresh com rotation
     // ---------------------------------------------------------------------------
 
-    @Transactional
+    // A rejeição por reuso precisa confirmar a revogação antes de devolver 401.
+    @Transactional(noRollbackFor = BadCredentialsException.class)
     public TokenResponse refresh(String rawRefreshToken) {
         String hash = hashToken(rawRefreshToken);
 
-        RefreshToken stored = refreshTokenRepository.findByTokenHash(hash)
+        RefreshToken stored = refreshTokenRepository.lockByTokenHash(hash)
                 .orElseThrow(() -> new BadCredentialsException("Refresh token inválido ou já utilizado"));
 
         if (stored.isRevoked()) {

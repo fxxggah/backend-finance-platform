@@ -10,15 +10,18 @@ import com.finance.creditcard.dto.request.InvoicePaymentRequest;
 import com.finance.creditcard.dto.response.InvoiceResponse;
 import com.finance.creditcard.entity.CreditCard;
 import com.finance.creditcard.entity.InvoicePayment;
+import com.finance.creditcard.repository.CreditCardRepository;
 import com.finance.creditcard.repository.InvoicePaymentRepository;
 import com.finance.transaction.repository.TransactionRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.Clock;
+import java.time.format.DateTimeParseException;
 import java.util.List;
 
 @Service
@@ -28,6 +31,7 @@ public class InvoiceService {
     private final TransactionRepository transactionRepository;
     private final InvoicePaymentRepository paymentRepository;
     private final AccountRepository accountRepository;
+    private final CreditCardRepository creditCardRepository;
     private final CreditCardDateUtil dateUtil;
     private final Clock clock;
 
@@ -59,9 +63,12 @@ public class InvoiceService {
                 .toList();
     }
 
-    @Transactional
+    @Transactional(isolation = Isolation.READ_COMMITTED)
     public void payInvoice(Long userId, CreditCard card, String referenceStr, InvoicePaymentRequest request) {
         LocalDate reference = dateUtil.parseReference(referenceStr);
+        // A fatura é derivada: a linha do cartão serializa pagamentos até o commit.
+        card = creditCardRepository.lockByIdAndUserId(card.getId(), userId)
+                .orElseThrow(() -> new ResourceNotFoundException("Cartão não encontrado."));
         InvoiceResponse invoice = getInvoiceSummary(card, reference);
 
         BigDecimal remaining = invoice.total().subtract(invoice.paid());
@@ -89,8 +96,15 @@ public class InvoiceService {
     }
 
     @Transactional
-    public void deletePayment(Long userId, Long paymentId) {
-        InvoicePayment payment = paymentRepository.findByIdAndUserId(paymentId, userId)
+    public void deletePayment(Long userId, Long cardId, String referenceStr, Long paymentId) {
+        LocalDate reference;
+        try {
+            reference = dateUtil.parseReference(referenceStr);
+        } catch (DateTimeParseException exception) {
+            throw new ResourceNotFoundException("Pagamento não encontrado.");
+        }
+        InvoicePayment payment = paymentRepository.findByIdAndUserIdAndCreditCardIdAndInvoiceReference(
+                        paymentId, userId, cardId, reference)
                 .orElseThrow(() -> new ResourceNotFoundException("Pagamento não encontrado."));
         paymentRepository.delete(payment);
     }

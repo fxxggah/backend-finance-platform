@@ -32,7 +32,8 @@ public class AuthController {
     }
 
     @PostMapping("/refresh")
-    @Operation(summary = "Renovar tokens", description = "Troca o refresh token por um novo par de tokens (rotation)")
+    @Operation(summary = "Renovar tokens", description = "Troca o refresh token por um novo par de tokens (rotation). "
+            + "Reuso retorna 401 e revoga todos os refresh tokens do usuário, inclusive o sucessor de uma renovação concorrente.")
     public ResponseEntity<TokenResponse> refresh(@Valid @RequestBody RefreshRequest request) {
         TokenResponse response = authService.refresh(request.refreshToken());
         return ResponseEntity.ok(response);

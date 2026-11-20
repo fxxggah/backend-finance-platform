@@ -9,8 +9,21 @@ Leia **no início de cada tarefa**: fase atual, dono e status. Uma feature por v
 - **Responsável:** Gabriel, autor e responsável pelo projeto inteiro. Frontend em outro repositório; o trabalho aqui é restrito ao backend.
 - **V1:** funcional, conforme confirmação de Gabriel. Os checklists antigos estão desatualizados e foram preservados abaixo como histórico, sem declarar verificações individuais como realizadas nesta tarefa.
 - **Fase atual:** V2 / fase 5 concluída no sandbox em 19/11/2026, responsável Gabriel. Checkout, portal e webhook continuam em dev com ativação explícita. A próxima etapa e a liberação em produção ainda não foram iniciadas.
+- **Antes do deploy:** os três bloqueios da [auditoria da suíte](backend-test-audit.md) foram corrigidos e validados em 20/11/2026. A recomendação continua sendo manter produção bloqueada até validar o boot em `prod` e fechar as pendências de autenticação e fuso.
 - **Base técnica confirmada:** Java 25, Spring Boot 4.1.1, pacote `com.finance`.
 - A distribuição antiga entre Biel, Breno e João e as decisões de divisão de trabalho abaixo são históricas; o responsável atual por todas as fases é Gabriel.
+
+## Correção dos bloqueios da auditoria — 19/11/2026
+
+Responsável: Gabriel. Escopo: revogação/concorrência de refresh, vínculo da exclusão de pagamento e limite de pagamentos simultâneos; depois, reavaliar a prontidão do deploy.
+
+- [x] Reproduzir antes da correção na suíte oficial com MySQL 8.4 descartável: 10 casos, 5 falhas esperadas, zero erros. Além das quatro provas originais, duas renovações simultâneas do mesmo refresh retornaram sucesso indevidamente. Log: `build/backend-blockers-red.log`.
+- [x] Corrigir a transação de revogação e serializar a rotação pelo hash do refresh; preservar rollback em falha inesperada.
+- [x] Exigir usuário, cartão, mês e pagamento correspondentes ao excluir; manter 404 quando o recurso não pertence ao usuário.
+- [x] Serializar pagamentos por cartão no MySQL, com leitura em READ_COMMITTED; não criar tabela de fatura nem persistir saldo.
+- [x] Atualizar regras, arquitetura, contrato e descrições OpenAPI. Rotas e DTOs preservados; frontend deve tratar 401 de reuso e enviar o cartão/mês reais na exclusão.
+- [x] Compilar com JDK 25 e executar a suíte completa com MySQL 8.4. Em 20/11/2026 passaram **1.019 testes**, incluindo 14 regressões novas, sem falhas, erros de teste ou ignorados. A saída Maven foi isolada por causa da interferência em `target`.
+- [x] Conferir regras, isolamento, Flyway/Hibernate `validate` e OpenAPI. Nenhuma migration nova foi necessária. Registrar evidências e a decisão de deploy na [auditoria](backend-test-audit.md).
 
 ## V2 — voz para transação
 

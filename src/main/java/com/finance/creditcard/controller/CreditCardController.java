@@ -7,6 +7,7 @@ import com.finance.creditcard.dto.response.InvoiceResponse;
 import com.finance.creditcard.entity.CreditCard;
 import com.finance.creditcard.service.CreditCardService;
 import com.finance.creditcard.service.InvoiceService;
+import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -54,6 +55,8 @@ public class CreditCardController {
     }
 
     @PostMapping("/{id}/invoices/{reference}/payments")
+    @Operation(summary = "Pagar fatura", description = "Registra pagamento até o saldo restante. "
+            + "Pagamentos concorrentes são serializados por cartão; valor excedente retorna 422.")
     @ResponseStatus(HttpStatus.CREATED)
     public void payInvoice(
             @AuthenticationPrincipal Jwt jwt,
@@ -66,6 +69,8 @@ public class CreditCardController {
     }
 
     @DeleteMapping("/{id}/invoices/{reference}/payments/{paymentId}")
+    @Operation(summary = "Excluir pagamento de fatura", description = "Exige pagamento do usuário autenticado, "
+            + "do cartão e da referência informados na URL. Qualquer divergência retorna 404 sem excluir.")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void deletePayment(
             @AuthenticationPrincipal Jwt jwt,
@@ -74,7 +79,7 @@ public class CreditCardController {
             @PathVariable Long paymentId) {
 
         creditCardService.getCardOrThrow(id, userId(jwt));
-        invoiceService.deletePayment(userId(jwt), paymentId);
+        invoiceService.deletePayment(userId(jwt), id, reference, paymentId);
     }
 
     private Long userId(Jwt jwt) {

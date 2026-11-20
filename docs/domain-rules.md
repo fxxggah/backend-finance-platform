@@ -24,6 +24,7 @@ Convenção: `422` para regra de negócio violada, `400` para payload inválido,
   - Receita: Salário, Freelance, Investimentos, Outros.
 - Logins seguintes atualizam nome e foto; a busca é por `googleId`. Nunca duplicar usuário.
 - Refresh token é de **uso único** (rotation): ao renovar, o antigo é revogado.
+- Reutilizar token revogado retorna 401 e **persiste** a revogação de todos os refresh tokens do usuário antes da resposta. Duas renovações concorrentes do mesmo token emitem no máximo um sucessor; a segunda detecta o reuso e revoga também esse sucessor. Tokens de outros usuários são preservados.
 - Guardar só o **hash** do refresh token.
 - Logout revoga o refresh token.
 - `User.active = false` não autentica.
@@ -146,6 +147,8 @@ pago  = SUM(InvoicePayment do cartão com o invoiceReference)
 
 - Permite antecipação parcial ou total em fatura `OPEN`, até o saldo devedor atual. A fatura continua `OPEN` até o fechamento, inclusive, e aceita novas compras; o total pago permanece no resumo.
 - Aceita pagamento parcial; a soma dos pagamentos **não pode passar do total** (422).
+- Pagamentos concorrentes no mesmo cartão são serializados no banco, da leitura do saldo ao commit; a segunda requisição considera o pagamento confirmado pela primeira.
+- Excluir um pagamento exige correspondência de **usuário + cartão + referência da fatura + ID do pagamento**. Cartão ou mês incorreto, referência inválida e recurso de outro usuário retornam 404 e preservam o pagamento. A URL correta retorna 204.
 - Conta de origem do usuário e não arquivada.
 - **Não é despesa**: não entra em receitas/despesas do dashboard. Reduz o saldo da conta.
 

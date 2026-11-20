@@ -296,7 +296,7 @@ class InvoicePaymentRepositoryTest {
         Clock clock = Clock.fixed(Instant.parse("2026-10-20T15:00:00Z"),
                 ZoneId.of("America/Sao_Paulo"));
         InvoiceService invoices = new InvoiceService(
-                transactionRepository, paymentRepository, accountRepository, new CreditCardDateUtil(), clock);
+                transactionRepository, paymentRepository, accountRepository, creditCardRepository, new CreditCardDateUtil(), clock);
         AccountService accounts = new AccountService(
                 transactionRepository, accountRepository, transferRepository, paymentRepository, creditCardRepository, entityManager);
         CreditCardService cards = new CreditCardService(

@@ -10,6 +10,7 @@ import com.finance.creditcard.dto.request.InvoicePaymentRequest;
 import com.finance.creditcard.dto.response.InvoiceResponse;
 import com.finance.creditcard.entity.CreditCard;
 import com.finance.creditcard.entity.InvoicePayment;
+import com.finance.creditcard.repository.CreditCardRepository;
 import com.finance.creditcard.repository.InvoicePaymentRepository;
 import com.finance.transaction.repository.TransactionRepository;
 import com.finance.user.entity.User;
@@ -65,24 +66,26 @@ class InvoiceServiceTest {
     @Mock
     private AccountRepository accountRepository;
     @Mock
+    private CreditCardRepository creditCardRepository;
+    @Mock
     private CreditCardDateUtil dateUtil;
 
     private InvoiceService invoiceService;
+    private CreditCard testCard;
 
     @BeforeEach
     void setUp() {
         Clock clock = Clock.fixed(Instant.parse("2026-10-20T15:00:00Z"), ZoneId.of("America/Sao_Paulo"));
-        invoiceService = new InvoiceService(transactionRepository, paymentRepository, accountRepository, dateUtil, clock);
+        invoiceService = new InvoiceService(transactionRepository, paymentRepository, accountRepository, creditCardRepository, dateUtil, clock);
+        testCard = new CreditCard(new User("google-1", "joao@example.com", "João", null),
+                "Nubank", new BigDecimal("5000.00"), 10, 17, "#8A05BE", "credit-card");
+        testCard.setId(CARD_ID);
     }
 
     // ---------- helpers ----------
 
     private CreditCard card() {
-        CreditCard card = new CreditCard(
-                new User("google-1", "joao@example.com", "João", null),
-                "Nubank", new BigDecimal("5000.00"), 10, 17, "#8A05BE", "credit-card");
-        card.setId(CARD_ID);
-        return card;
+        return testCard;
     }
 
     private void stubInvoice(String total, String paid, LocalDate closingDate, LocalDate dueDate) {
@@ -102,6 +105,7 @@ class InvoiceServiceTest {
     }
 
     private InvoicePaymentRequest paymentRequest(String amount) {
+        when(creditCardRepository.lockByIdAndUserId(CARD_ID, USER_ID)).thenReturn(Optional.of(card()));
         return new InvoicePaymentRequest(ACCOUNT_ID, new BigDecimal(amount), TODAY);
     }
 
@@ -365,9 +369,11 @@ class InvoiceServiceTest {
     @DisplayName("deletePayment: deve excluir o pagamento do usuário")
     void deletePayment_shouldDelete_whenOwned() {
         InvoicePayment payment = new InvoicePayment();
-        when(paymentRepository.findByIdAndUserId(PAYMENT_ID, USER_ID)).thenReturn(Optional.of(payment));
+        when(dateUtil.parseReference(REFERENCE_STR)).thenReturn(REFERENCE);
+        when(paymentRepository.findByIdAndUserIdAndCreditCardIdAndInvoiceReference(
+                PAYMENT_ID, USER_ID, CARD_ID, REFERENCE)).thenReturn(Optional.of(payment));
 
-        invoiceService.deletePayment(USER_ID, PAYMENT_ID);
+        invoiceService.deletePayment(USER_ID, CARD_ID, REFERENCE_STR, PAYMENT_ID);
 
         verify(paymentRepository).delete(payment);
     }
@@ -375,9 +381,11 @@ class InvoiceServiceTest {
     @Test
     @DisplayName("deletePayment: deve lançar ResourceNotFoundException quando não existe ou é de outro usuário")
     void deletePayment_shouldThrowNotFound_whenNotOwned() {
-        when(paymentRepository.findByIdAndUserId(PAYMENT_ID, USER_ID)).thenReturn(Optional.empty());
+        when(dateUtil.parseReference(REFERENCE_STR)).thenReturn(REFERENCE);
+        when(paymentRepository.findByIdAndUserIdAndCreditCardIdAndInvoiceReference(
+                PAYMENT_ID, USER_ID, CARD_ID, REFERENCE)).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> invoiceService.deletePayment(USER_ID, PAYMENT_ID))
+        assertThatThrownBy(() -> invoiceService.deletePayment(USER_ID, CARD_ID, REFERENCE_STR, PAYMENT_ID))
                 .isInstanceOf(ResourceNotFoundException.class)
                 .hasMessage("Pagamento não encontrado.");
 

@@ -473,7 +473,7 @@ class CreditCardControllerTest {
                 .andExpect(status().isNoContent());
 
         verify(creditCardService).getCardOrThrow(CARD_ID, USER_ID);
-        verify(invoiceService).deletePayment(USER_ID, PAYMENT_ID);
+        verify(invoiceService).deletePayment(USER_ID, CARD_ID, REFERENCE, PAYMENT_ID);
     }
 
     @Test
@@ -494,7 +494,7 @@ class CreditCardControllerTest {
     void deletePayment_shouldReturnNotFound_whenPaymentNotFound() throws Exception {
         when(creditCardService.getCardOrThrow(CARD_ID, USER_ID)).thenReturn(sampleCard());
         doThrow(new ResourceNotFoundException("Pagamento não encontrado."))
-                .when(invoiceService).deletePayment(USER_ID, 999L);
+                .when(invoiceService).deletePayment(USER_ID, CARD_ID, REFERENCE, 999L);
 
         mockMvc.perform(delete(URL + "/" + CARD_ID + "/invoices/" + REFERENCE + "/payments/999")
                         .with(user1()).with(csrf()))

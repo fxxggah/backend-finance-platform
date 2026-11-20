@@ -44,6 +44,8 @@ Dentro de cada feature: `XController`, `XService`, `XRepository`, `X` (entity) e
 - `@Transactional` no **service**, nunca no controller.
 - Leituras: `@Transactional(readOnly = true)`.
 - Operações que alteram mais de uma tabela (ex.: criar parcelas, contribuição de meta, pagamento de fatura) ficam numa **única** transação.
+- `AuthService.refresh` bloqueia o refresh por hash (`PESSIMISTIC_WRITE`) antes de validar/rotacionar. A transação usa `noRollbackFor = BadCredentialsException.class` para confirmar a revogação por reuso antes do 401; falhas inesperadas continuam causando rollback. Demais rejeições de autenticação ocorrem antes de qualquer escrita.
+- `InvoiceService.payInvoice` usa `READ_COMMITTED` e bloqueio pessimista do cartão filtrado por usuário antes dos agregados; o bloqueio termina no commit. Como não há entidade de fatura, pagamentos de meses diferentes do mesmo cartão também são serializados. Cartões diferentes não compartilham esse bloqueio.
 
 ## 3. Segurança
 
@@ -164,6 +166,7 @@ Nunca devolver stack trace, SQL nem dados de outro usuário em mensagem de erro.
 
 - **Não usar H2**: as agregações e os `CHECK` se comportam diferente do MySQL.
 - Todo teste de web que exige login usa um JWT de teste com `sub` = id do usuário criado no teste.
+- Regressões da auditoria: `auth/AuthRefreshIntegrationTest` e `creditcard/InvoicePaymentIntegrationTest`, com MySQL 8.4/Testcontainers, Flyway/validate e transações reais. Conferem persistência após resposta/commit, reuso/concorrência, vínculo da URL e isolamento; pagamentos usam JWT assinado e decoder real. Não usam transação de teste envolvendo a requisição nem provedores externos.
 
 ## 11. Atenção: Spring Boot 4
 

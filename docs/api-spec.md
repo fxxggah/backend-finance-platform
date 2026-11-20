@@ -51,6 +51,7 @@ Públicas (sem Bearer).
 
 - Access token: JWT, 15 min. Refresh token: 7 dias, **uso único** (rotation).
 - Refresh reutilizado ou revogado → `401`.
+- A rejeição por reuso confirma a revogação de todos os refresh tokens do usuário. Em duas renovações simultâneas do mesmo token, somente uma pode retornar `200`; a outra retorna `401` e revoga também o sucessor. É necessário fazer login novamente.
 
 ## 3. Usuário
 
@@ -147,6 +148,8 @@ Ordenação padrão: `date,desc`.
 | POST | `/credit-cards/{id}/invoices/{yyyy-MM}/payments` | `{ accountId, amount, date }` | `201` |
 | DELETE | `/credit-cards/{id}/invoices/{yyyy-MM}/payments/{paymentId}` | n/a | `204` |
 
+- A exclusão confere o pagamento no usuário autenticado, cartão e mês da URL. Uma divergência ou uma referência de mês inválida retorna `404` e preserva o pagamento. O frontend deve enviar a referência e o cartão reais do pagamento.
+- Pagamentos simultâneos que ultrapassariam o saldo retornam `422` para a requisição excedente; cada requisição considera os pagamentos já confirmados, inclusive os que estavam em andamento quando ela começou.
 - `availableLimit` pode ser **negativo** (estourar o limite não bloqueia).
 - `status` da fatura: `OPEN`, `CLOSED`, `PARTIALLY_PAID`, `PAID`, `OVERDUE` (calculado).
 - Pagamento permitido também em fatura `OPEN`, sem alterar seu ciclo de fechamento. A soma dos pagamentos não pode ultrapassar o total atual → `422`. POST de pagamento mantém payload `{ accountId, amount, date }` e resposta `201` sem corpo.

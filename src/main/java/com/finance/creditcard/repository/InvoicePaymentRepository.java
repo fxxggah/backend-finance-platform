@@ -14,6 +14,9 @@ public interface InvoicePaymentRepository extends JpaRepository<InvoicePayment, 
 
     Optional<InvoicePayment> findByIdAndUserId(Long id, Long userId);
 
+    Optional<InvoicePayment> findByIdAndUserIdAndCreditCardIdAndInvoiceReference(
+            Long id, Long userId, Long creditCardId, LocalDate invoiceReference);
+
     List<InvoicePayment> findAllByUserIdAndCreditCardIdAndInvoiceReference(Long userId, Long creditCardId,
             LocalDate invoiceReference);
 

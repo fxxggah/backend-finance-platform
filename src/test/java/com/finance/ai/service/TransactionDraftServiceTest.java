@@ -9,6 +9,7 @@ import com.finance.ai.model.ExtractionCatalog;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
+import org.springframework.http.HttpStatus;
 import java.time.*;
 import java.util.Map;
 import static org.assertj.core.api.Assertions.*;
@@ -17,6 +18,14 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 
 class TransactionDraftServiceTest {
+    private static final long USER = 7L;
+    private static final long RESERVATION = 19L;
+    private static final String KEY = "test-key-reservation";
+    private static final String VALID_EXTRACTION = """
+            {"events":[{"description":"Compra na padaria","type":"EXPENSE","amount":"10.00",
+            "date":null,"installments":null,"categoryRef":null,"accountRef":null,"creditCardRef":null}]}
+            """;
+
     @ParameterizedTest @ValueSource(strings = {"account", "card", "unknown"})
     void absentDateAndInstallmentsUseSaoPauloTodayAndOneWithoutGuessingOriginOrAmount(String source) {
         var audio = mock(AudioValidator.class); var catalogs = mock(AiCatalogService.class);
@@ -24,6 +33,7 @@ class TransactionDraftServiceTest {
         var catalog = new ExtractionCatalog(Map.of(), Map.of(), Map.of());
         when(audio.validate(any())).thenReturn(new AudioInput(new byte[1], "audio/wav", Duration.ofSeconds(1)));
         when(catalogs.load(7L)).thenReturn(catalog);
+        when(quotas.reserve(eq(7L), eq("test-key-defaults"), any())).thenReturn(RESERVATION);
         when(catalogs.validate(eq(7L), eq(catalog), any())).thenReturn(new AiCatalogService.Resolved(
                 null, source.equals("account") ? 5L : null, source.equals("card") ? 6L : null));
         when(extractor.extract(any(), any(), eq(LocalDate.of(2026, 11, 13)))).thenReturn("""
@@ -42,7 +52,8 @@ class TransactionDraftServiceTest {
             assertThat(result.accountId()).isNull(); assertThat(result.creditCardId()).isNull();
             assertThat(result.missingFields()).contains("paymentSource");
         }
-        verify(quotas).succeed(eq(7L), any());
+        verify(quotas).succeed(7L, RESERVATION);
+        verify(quotas, never()).fail(any(), any(), anyBoolean());
     }
 
     @Test void preservesSpokenDateAndExplicitCardInstallments() {
@@ -125,5 +136,105 @@ class TransactionDraftServiceTest {
                 Clock.fixed(Instant.parse("2026-11-14T01:00:00Z"), ZoneOffset.UTC), quotas);
         assertThatThrownBy(() -> service.create(7L, new byte[1], "test-key-0002")).isInstanceOf(AiException.class);
         verify(catalogs, never()).validate(any(), any(), any());
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"AI_RATE_LIMITED", "AI_UNAVAILABLE"})
+    void providerFailureFinalizesReservationAndOnlyRateLimitStartsCooldown(String code) {
+        var draft = new ReservedDraft();
+        boolean rateLimited = "AI_RATE_LIMITED".equals(code);
+        var failure = new AiException(HttpStatus.SERVICE_UNAVAILABLE, code, "Provedor indisponível");
+        when(draft.extractor.extract(any(), eq(draft.catalog), any())).thenThrow(failure);
+
+        assertThatThrownBy(draft::create).isSameAs(failure);
+
+        var order = inOrder(draft.quotas, draft.extractor);
+        order.verify(draft.quotas).reserve(USER, KEY, draft.bytes);
+        order.verify(draft.extractor).extract(any(), eq(draft.catalog), any());
+        order.verify(draft.quotas).fail(USER, RESERVATION, rateLimited);
+        verify(draft.quotas, never()).succeed(any(), any());
+    }
+
+    @Test
+    void malformedProviderResponseFailsReservationBeforeCatalogRevalidation() {
+        var draft = new ReservedDraft();
+        when(draft.extractor.extract(any(), eq(draft.catalog), any())).thenReturn("not-json");
+
+        assertThatThrownBy(draft::create).isInstanceOfSatisfying(AiException.class,
+                error -> assertThat(error.code()).isEqualTo("INVALID_AI_RESPONSE"));
+
+        verify(draft.catalogs, never()).validate(any(), any(), any());
+        verify(draft.quotas).fail(USER, RESERVATION, false);
+        verify(draft.quotas, never()).succeed(any(), any());
+    }
+
+    @Test
+    void resourceThatDisappearsAfterExtractionFailsReservationWithoutSuccess() {
+        var draft = new ReservedDraft();
+        when(draft.extractor.extract(any(), eq(draft.catalog), any())).thenReturn(VALID_EXTRACTION);
+        var failure = new AiException(HttpStatus.NOT_FOUND, "RESOURCE_NOT_FOUND", "Recurso indisponível");
+        when(draft.catalogs.validate(eq(USER), eq(draft.catalog), any())).thenThrow(failure);
+
+        assertThatThrownBy(draft::create).isSameAs(failure);
+
+        verify(draft.quotas).fail(USER, RESERVATION, false);
+        verify(draft.quotas, never()).succeed(any(), any());
+    }
+
+    @Test
+    void failedSuccessCommitAttemptsCleanupAndPreservesOriginalError() {
+        var draft = new ReservedDraft();
+        when(draft.extractor.extract(any(), eq(draft.catalog), any())).thenReturn(VALID_EXTRACTION);
+        when(draft.catalogs.validate(eq(USER), eq(draft.catalog), any()))
+                .thenReturn(new AiCatalogService.Resolved(null, null, null));
+        var failure = new AiException(HttpStatus.SERVICE_UNAVAILABLE, "AI_REQUEST_EXPIRED", "Reserva expirada");
+        doThrow(failure).when(draft.quotas).succeed(USER, RESERVATION);
+        doThrow(new IllegalStateException("synthetic cleanup failure"))
+                .when(draft.quotas).fail(USER, RESERVATION, false);
+
+        assertThatThrownBy(draft::create).isSameAs(failure);
+
+        var order = inOrder(draft.quotas);
+        order.verify(draft.quotas).reserve(USER, KEY, draft.bytes);
+        order.verify(draft.quotas).succeed(USER, RESERVATION);
+        order.verify(draft.quotas).fail(USER, RESERVATION, false);
+    }
+
+    @Test
+    void unexpectedProviderFailureIsSanitizedAfterReservationCleanup() {
+        var draft = new ReservedDraft();
+        when(draft.extractor.extract(any(), eq(draft.catalog), any()))
+                .thenThrow(new IllegalStateException("synthetic provider body"));
+
+        assertThatThrownBy(draft::create).isInstanceOfSatisfying(AiException.class, error -> {
+            assertThat(error.status()).isEqualTo(HttpStatus.SERVICE_UNAVAILABLE);
+            assertThat(error.code()).isEqualTo("AI_UNAVAILABLE");
+            assertThat(error.getMessage()).doesNotContain("synthetic provider body");
+            assertThat(error.getCause()).isNull();
+        });
+        verify(draft.quotas).fail(USER, RESERVATION, false);
+        verify(draft.quotas, never()).succeed(any(), any());
+    }
+
+    private static final class ReservedDraft {
+        final byte[] bytes = {1};
+        final ExtractionCatalog catalog = new ExtractionCatalog(Map.of(), Map.of(), Map.of());
+        final AiCatalogService catalogs = mock(AiCatalogService.class);
+        final TransactionExtractor extractor = mock(TransactionExtractor.class);
+        final AiQuotaService quotas = mock(AiQuotaService.class);
+        final TransactionDraftService service;
+
+        ReservedDraft() {
+            var validator = mock(AudioValidator.class);
+            when(validator.validate(bytes)).thenReturn(new AudioInput(bytes, "audio/wav", Duration.ofSeconds(1)));
+            when(catalogs.load(USER)).thenReturn(catalog);
+            when(quotas.reserve(USER, KEY, bytes)).thenReturn(RESERVATION);
+            service = new TransactionDraftService(validator, catalogs, extractor, new ExtractionParser(),
+                    Clock.fixed(Instant.parse("2026-11-14T01:00:00Z"), ZoneOffset.UTC), quotas);
+        }
+
+        void create() {
+            service.create(USER, bytes, KEY);
+        }
     }
 }

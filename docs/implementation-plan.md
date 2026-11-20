@@ -659,9 +659,9 @@ Responsável: Gabriel. Ajustes executados após o piloto da V2 em sandbox.
 
 Evidências do backend em `build/predeploy-compile-final.log`, `build/predeploy-suite-final.log`, `build/predeploy-auth-final.log` e `build/predeploy-openapi.log`.
 
-## Plano de testes unitários do backend — fases 0 e 1
+## Plano de testes unitários do backend — fases 0 a 3
 
-Responsável: Gabriel. Fase 0 mapeia o checklist da V1 e as regras críticas da V2 após o piloto sandbox. Fase 1 cobre JWT interno e validade efetiva de PRO. As fases 2 a 4 abaixo indicam a fila de implementação.
+Responsável: Gabriel. Fase 0 mapeia o checklist da V1 e as regras críticas da V2 após o piloto sandbox. Fase 1 cobre JWT e validade efetiva de PRO. Fases 2 e 3 cobrem cobrança, exclusão de conta, cotas e rascunho. A revisão das regras financeiras da V1 fica na fase 4.
 
 ### Fase 0 · Matriz de regras e cobertura
 
@@ -686,10 +686,10 @@ U indica teste unitário. I indica evidência com Spring/MySQL. As referências 
 | Login Google | Validador real com certificados sintéticos em loopback no `GoogleTokenVerifierTest`; I: `AuthRefreshIntegrationTest` cobre sessão persistida e nenhuma persistência em falha. | Login com conta real em homologação segue no checklist pré-deploy. |
 | JWT interno e conta ativa | U: `JwtServiceTest` valida emissão; `SecurityConfigJwtDecoderTest` usa o decoder de produção com repositório simulado. I: `BillingIntegrationTest` bloqueia em `/accounts` o JWT já emitido após desativação. | Fase 1 cobre assinatura, expiração, subject, revogação por conta inativa e indisponibilidade da consulta. |
 | Composição de PRO manual e pago | U: `ProAccessServiceTest` cobre valores ausentes, empate e ambas as ordens; `UserMapperTest` verifica plano e validade exibidos na expiração exata. I: `BillingIntegrationTest` cobre período futuro e validade paga confirmada. | Fase 1 cobre a escolha da maior validade e a aplicação da regra de conta ativa no perfil. |
-| Checkout, webhook, renovação e acesso pago | `StripeBillingGatewayTest` cobre o contrato do adaptador. I: `BillingIntegrationTest` cobre evento duplicado, falha de renovação, reembolso, indisponibilidade e reconciliação. | Fase 2: testar em unidade expiração de checkout, conflitos de evento, tentativa obsoleta e continuidade do worker após erro. |
-| Exclusão de conta com cobrança | U: `UserDataDeletionServiceTest` cobre ordem e escopo da exclusão local. I: `BillingIntegrationTest` prova bloqueio imediato e conclusão após cancelamento remoto. | Fase 2: cobrir as ramificações do serviço que escolhe exclusão local ou aguarda o Stripe. |
-| Cota, lease, idempotência e cooldown de IA | I: `AiQuotaIntegrationTest` cobre acesso, paralelismo, repetição, expiração, cooldown e viradas do dia pessoal/global. | Fase 3: testar em unidade os limites da chave, o lease no instante exato, o maior cooldown e o `Retry-After`. |
-| Rascunho por voz e uso de cota | U: `TransactionDraftServiceTest` cobre PRO antes do decoder, áudio inválido sem reserva, defaults e preservação de data explícita; `ExtractionParserTest` cobre o schema. I: `TransactionDraftIntegrationTest` cobre confirmação e isolamento. | Fase 3: verificar a finalização da tentativa nas falhas após a reserva. |
+| Checkout, webhook, renovação e acesso pago | U: `BillingStoreTest`, `BillingServiceTest` e `BillingWorkerTest` cobrem expiração, idempotência, conflito de evento, tentativa obsoleta e continuidade após erro. `StripeBillingGatewayTest` cobre o adaptador. I: `BillingIntegrationTest` cobre renovação, reembolso e reconciliação. | Manter a prova de concorrência e persistência no MySQL. |
+| Exclusão de conta com cobrança | U: `BillingDeletionServiceTest`, `BillingStoreTest` e `BillingServiceTest` cobrem a escolha entre exclusão local e remota, desativação, revogação da sessão e ordem entre Stripe e exclusão local. I: `BillingIntegrationTest` prova bloqueio imediato e conclusão após cancelamento remoto. | Conservar a prova de bloqueio e exclusão pela API. |
+| Cota, lease, idempotência e cooldown de IA | U: `AiQuotaServiceTest` cobre os limites da chave, PRO e lease no instante exato, o maior cooldown e o `Retry-After`. I: `AiQuotaIntegrationTest` cobre o controle concorrente, repetição e viradas do dia pessoal/global. | Manter a prova de exclusão mútua e contabilização persistida no MySQL. |
+| Rascunho por voz e uso de cota | U: `TransactionDraftServiceTest` cobre validação pré-reserva, finalização após falhas, cooldown exclusivo para limitação do provedor e preservação do erro original. `ExtractionParserTest` cobre o schema. I: `TransactionDraftIntegrationTest` cobre confirmação, cabeçalho `Retry-After` e isolamento. | Preservar a prova de que o rascunho só vira transação após confirmação. |
 
 - [x] Mapear os 15 itens do checklist da V1 e as regras críticas de autenticação, IA e cobrança da V2.
 - [x] Registrar as lacunas por camada e alinhar a linha histórica sobre faturas abertas à antecipação já aprovada.
@@ -701,3 +701,17 @@ U indica teste unitário. I indica evidência com Spring/MySQL. As referências 
 - [x] Verificar PRO manual e pago nos casos nulos, empatados, maior validade em ambas as ordens e usuário inativo, com fronteira exata da expiração.
 - [x] Confirmar que os testes detectam três regressões em fontes temporárias: aceitar JWT de conta inativa, escolher a menor validade e manter PRO no instante da expiração. As quatro falhas de asserção esperadas estão em `build/phase01-mutation.log`.
 - [x] Compilar com Java 25 e `mvnw.cmd -U clean compile`. Passaram os 25 casos focados (21 novos) e os 1.047 da regressão completa com MySQL, com zero falhas, erros ou ignorados. Evidências em `build/phase01-compile.log`, `build/phase01-focused.log` e `build/phase01-suite.log`.
+
+### Fase 2 · Cobrança e exclusão de conta
+
+- [x] Cobrir expiração de checkout no instante exato, nova chave depois de expirar, reaproveitamento de checkout válido e falha do provedor sem publicar URL.
+- [x] Cobrir duplicatas idênticas e divergentes, reprocessamento de uma inserção concorrente, conclusão por tentativa obsoleta e continuidade do worker após falhas em eventos ou usuários.
+- [x] Verificar desativação imediata e revogação dos refresh tokens. Exercitar exclusão física local quando não existe vínculo e cancelamento remoto antes da exclusão quando existe vínculo, incluindo indisponibilidade e recuperação sob a fila existente.
+
+### Fase 3 · Cotas e rascunho por voz
+
+- [x] Cobrir os limites da chave de idempotência, expiração exata de PRO e lease, janelas pessoal e global e registro da data local de conclusão.
+- [x] Verificar `Retry-After` próximo das viradas de São Paulo e do Pacífico, no limite global por minuto e durante cooldown. Cobrir a retomada no fim do cooldown e a preservação de bloqueio mais longo.
+- [x] Exercitar falhas depois da reserva no provedor, parser, revalidação do catálogo e finalização. Verificar o ID da reserva, a liberação como falha e a preservação do erro original quando a limpeza também falha.
+- [x] Confirmar que os testes detectam três regressões em fontes temporárias: aceitar conclusão de evento com token obsoleto, encurtar cooldown vigente e ignorar a limitação do provedor ao finalizar uma tentativa. As falhas de asserção esperadas estão em `build/phase23-mutation.log`.
+- [x] Validar as duas fases com Java 25 e `mvnw.cmd -U clean compile`. Passaram os 58 casos focados (50 novos) e os 1.097 da regressão completa com MySQL, com zero falhas, erros ou ignorados. Evidências em `build/phase23-compile.log`, `build/phase23-focused.log` e `build/phase23-suite.log`.
